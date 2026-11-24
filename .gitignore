@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/.venv/
 /.pnp
 .pnp.*
 .yarn/*
@@ -39,3 +40,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python agent
+agent/.venv/
+agent/**/__pycache__/
+agent/dist/
+agent/*.egg-info/
+agent/.pytest_cache/
+agent/.ruff_cache/
+agent/.mypy_cache/
+.venv
