@@ -23,9 +23,23 @@ def dev_parse(text: str, run: bool = False) -> None:
     except Exception:
         pass
     result = match(text)
+    if result is None and len(text.split()) > 1:
+        result = match(text.split(" ", 1)[1])
     if result is None: typer.echo("No match"); raise typer.Exit(1)
     typer.echo(f"{result.id}: action={result.action} slots={result.slots} risk={result.risk.value}")
-    if run: typer.echo("Action execution is available only through the daemon adapter.")
+    if run:
+        if result.risk.value == "confirm":
+            typer.echo(f"Confirmation required before running {result.id}.")
+            raise typer.Exit(2)
+        from hi_puter.actions.registry import execute
+        from hi_puter.adapters.factory import get_adapter
+        try:
+            outcome = execute(result, get_adapter())
+        except Exception as exc:
+            typer.echo(f"Action failed: {exc}", err=True)
+            raise typer.Exit(1) from exc
+        typer.echo(outcome.spoken)
+        if not outcome.ok: raise typer.Exit(1)
 
 
 if __name__ == "__main__": app()

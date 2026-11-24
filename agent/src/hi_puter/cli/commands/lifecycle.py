@@ -1,6 +1,7 @@
 import typer
 
 from hi_puter.core.errors import LifecycleError
+from hi_puter.core.config import load_config
 from hi_puter.core.paths import get_paths
 from hi_puter.runtime.lifecycle import is_running, start, stop
 
@@ -8,6 +9,8 @@ from hi_puter.runtime.lifecycle import is_running, start, stop
 def start_command(foreground: bool = typer.Option(False, "--foreground", help="Run in the current terminal.")) -> None:
     """Start the Hi-Puter daemon."""
     paths = get_paths(); paths.ensure()
+    try: load_config(paths.config_file)
+    except Exception as exc: typer.echo(f"Cannot start: {exc}", err=True); raise typer.Exit(1) from exc
     try: pid = start(paths.pid_file, foreground)
     except LifecycleError as exc: typer.echo(str(exc), err=True); raise typer.Exit(1) from exc
     typer.echo(f"Hi-Puter started (pid {pid}).")

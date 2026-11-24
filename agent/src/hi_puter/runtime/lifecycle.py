@@ -28,6 +28,15 @@ def start(pid_file: Path, foreground: bool = False) -> int:
     if not foreground and os.name != "nt": kwargs["start_new_session"] = True
     process = subprocess.Popen([sys.executable, "-m", "hi_puter.runtime.daemon"], stdout=None if foreground else subprocess.DEVNULL, stderr=None if foreground else subprocess.DEVNULL, **kwargs)
     pid_file.write_text(str(process.pid)); os.chmod(pid_file, 0o600)
+    if foreground:
+        result = process.wait()
+        pid_file.unlink(missing_ok=True)
+        if result != 0: raise LifecycleError("The daemon exited with an error.")
+    else:
+        time.sleep(0.25)
+        if process.poll() is not None:
+            pid_file.unlink(missing_ok=True)
+            raise LifecycleError("The daemon exited. Run `hi-puter start --foreground` for details.")
     return process.pid
 
 

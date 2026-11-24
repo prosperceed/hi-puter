@@ -93,9 +93,16 @@ def load_config(path: Path) -> Config:
 def save_config(path: Path, config: Config) -> None:
     config.validate(); path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     payload = asdict(config); payload["apps"] = {"aliases": payload.pop("apps_aliases")}; payload["search"] = {"url_template": payload.pop("search_url_template")}
+    payload = _without_none(payload)
     fd, temp_name = tempfile.mkstemp(prefix=".config-", dir=path.parent, text=True)
     try:
-        with os.fdopen(fd, "w") as handle: tomli_w.dump(payload, handle)
+        with os.fdopen(fd, "wb") as handle: tomli_w.dump(payload, handle)
         os.chmod(temp_name, 0o600); os.replace(temp_name, path)
     finally:
         if os.path.exists(temp_name): os.unlink(temp_name)
+
+
+def _without_none(value: Any) -> Any:
+    if isinstance(value, dict): return {key: _without_none(item) for key, item in value.items() if item is not None}
+    if isinstance(value, list): return [_without_none(item) for item in value]
+    return value
