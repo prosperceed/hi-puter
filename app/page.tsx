@@ -1,11 +1,16 @@
-import Image from "next/image";
+import { Footer } from "@/components/layout/Footer";
+import { Navbar } from "@/components/layout/Navbar";
+import { Commands } from "@/components/sections/Commands";
+import { Faq } from "@/components/sections/Faq";
+import { FinalCta } from "@/components/sections/FinalCta";
+import { Hero } from "@/components/sections/Hero";
+import { HowItWorks } from "@/components/sections/HowItWorks";
+import { InstallGuide } from "@/components/sections/InstallGuide";
+import { Privacy } from "@/components/sections/Privacy";
+import { WakeName } from "@/components/sections/WakeName";
+import { WhatItDoes } from "@/components/sections/WhatItDoes";
 
 export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        
-      </main>
-    </div>
-  );
+  const structuredData = { "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Hi-Puter", applicationCategory: "UtilitiesApplication", operatingSystem: "Windows, Linux", description: "A local voice assistant for Windows and Linux.", offers: { "@type": "Offer", price: "0", priceCurrency: "USD" } };
+  return <><Navbar /><main><Hero /><WhatItDoes /><HowItWorks /><Commands /><WakeName /><Privacy /><InstallGuide /><Faq /><FinalCta /></main><Footer /><script type="application/ld+json">{JSON.stringify(structuredData)}</script></>;
 }
