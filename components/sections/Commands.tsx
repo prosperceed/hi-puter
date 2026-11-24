@@ -12,12 +12,11 @@ export function Commands() {
   return (
     <Section
       id="commands"
-      className="commands-section"
       eyebrow="The vocabulary"
       title="Say what you mean."
       intro="A few useful things to say on day one. No special syntax to learn."
     >
-      <div className="commands-panel card">
+      <div className="commands-panel">
         <div className="tabs" role="tablist" aria-label="Command categories">
           {commandGroups.map(({ label, icon: Icon }, index) => (
             <button
@@ -44,7 +43,7 @@ export function Commands() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.06, duration: 0.25, ease: "easeOut" }}
             >
-              <span className="icon-chip sm" aria-hidden="true"><Icon size={17} /></span>
+              <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
               <p>
                 <span className="quote">“</span>
                 {phrase}

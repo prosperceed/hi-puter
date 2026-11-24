@@ -6,16 +6,15 @@ export function HowItWorks() {
   return (
     <Section
       id="how-it-works"
-      className="how-section"
       eyebrow="The loop"
       title="A small loop with a clear off switch."
       intro="Hi-Puter is quiet by default. You decide when it is active and what it is allowed to do."
     >
       <MotionReveal className="steps-grid">
         {howItWorks.map(({ number, title, body, icon: Icon }) => (
-          <article className="step-card card" key={number}>
+          <article className="step-card" key={number}>
             <div className="step-head">
-              <span className="icon-chip" aria-hidden="true"><Icon size={19} /></span>
+              <span className="icon-mark" aria-hidden="true"><Icon size={18} strokeWidth={1.75} /></span>
               <span className="step-number">{number}</span>
             </div>
             <h3>{title}</h3>

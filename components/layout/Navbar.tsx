@@ -21,27 +21,27 @@ export function Navbar() {
               {link.label}
             </Link>
           ))}
-          <span className="desktop-theme-toggle">
-            <ThemeToggle />
-          </span>
-          <Link className="button button-small button-primary nav-cta" href="#install" onClick={close}>
-            Install
-            <ArrowRight className="icon-trail" size={15} aria-hidden="true" />
+          <Link className="button button-primary nav-mobile-cta" href="#install" onClick={close}>
+            Install Hi-Puter
+            <ArrowRight className="icon-trail" size={16} aria-hidden="true" />
           </Link>
         </nav>
-        <span className="mobile-theme-toggle">
+        <div className="nav-actions">
           <ThemeToggle />
-        </span>
-        <button
-          className="menu-button"
-          type="button"
-          aria-expanded={open}
-          aria-controls="primary-nav"
-          aria-label={open ? "Close menu" : "Open menu"}
-          onClick={() => setOpen((value) => !value)}
-        >
-          {open ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
-        </button>
+          <Link className="button button-small button-secondary nav-cta" href="#install">
+            Install
+          </Link>
+          <button
+            className="menu-button"
+            type="button"
+            aria-expanded={open}
+            aria-controls="primary-nav"
+            aria-label={open ? "Close menu" : "Open menu"}
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
+          </button>
+        </div>
       </div>
     </header>
   );

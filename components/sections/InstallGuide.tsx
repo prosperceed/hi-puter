@@ -33,13 +33,12 @@ export function InstallGuide() {
   return (
     <Section
       id="install"
-      className="install-section"
       eyebrow="Start here"
       title="Install once. Talk to your computer."
       intro="Hi-Puter lives in your terminal. Setup takes a minute, then it is ready when you are."
     >
       <div className="install-layout">
-        <div className="install-main card">
+        <div className="install-main">
           <div className="tabs" role="tablist" aria-label="Choose your platform">
             {(Object.keys(platforms) as Platform[]).map((item) => {
               const Icon = platforms[item].icon;
@@ -58,7 +57,7 @@ export function InstallGuide() {
               );
             })}
           </div>
-          <div className="install-body" role="tabpanel">
+          <div role="tabpanel">
             <p className="platform-note">
               <Info size={16} aria-hidden="true" />
               {current.note}
@@ -76,7 +75,7 @@ export function InstallGuide() {
             </ol>
           </div>
         </div>
-        <aside className="install-aside card">
+        <aside className="install-aside">
           <h3>After that</h3>
           {afterCommands.map((item) => (
             <CodeBlock key={item.command} command={item.command} label={item.label} prompt={current.prompt} />
