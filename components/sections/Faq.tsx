@@ -1,7 +1,19 @@
 import { Accordion } from "@/components/ui/Accordion";
-import { Section } from "@/components/layout/Section";
+import { Container } from "@/components/layout/Container";
+import { SectionHeading } from "@/components/layout/Section";
 import { faqItems } from "@/content/site";
 
 export function Faq() {
-  return <Section className="faq-section" eyebrow="Questions" title="Before you say hello."><Accordion items={faqItems} /></Section>;
+  return (
+    <section id="faq" className="section ticked">
+      <Container className="faq-layout">
+        <SectionHeading
+          eyebrow="Questions"
+          title="Before you say hello."
+          intro="Short answers to what people ask first."
+        />
+        <Accordion items={faqItems} />
+      </Container>
+    </section>
+  );
 }
