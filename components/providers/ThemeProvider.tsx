@@ -5,5 +5,5 @@ import type { ReactNode } from "react";
 import { themeStorageKey } from "@/lib/theme";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  return <NextThemeProvider attribute="class" storageKey={themeStorageKey} defaultTheme="light" enableSystem={false} disableTransitionOnChange>{children}</NextThemeProvider>;
+  return <NextThemeProvider attribute="class" storageKey={themeStorageKey} defaultTheme="dark" enableSystem={false} disableTransitionOnChange>{children}</NextThemeProvider>;
 }
