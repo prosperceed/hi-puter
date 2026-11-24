@@ -1,6 +1,17 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-export function Button({ href, children, variant = "primary", className = "" }: { href: string; children: ReactNode; variant?: "primary" | "secondary"; className?: string }) {
-  return <Link className={`button button-${variant} ${className}`} href={href}>{children}</Link>;
+type ButtonProps = {
+  href: string;
+  children: ReactNode;
+  variant?: "primary" | "secondary";
+  className?: string;
+};
+
+export function Button({ href, children, variant = "primary", className = "" }: ButtonProps) {
+  return (
+    <Link className={`button button-${variant} ${className}`.trim()} href={href}>
+      {children}
+    </Link>
+  );
 }
