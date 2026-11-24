@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 
 const display = Bricolage_Grotesque({ variable: "--font-display", subsets: ["latin"], display: "swap" });
 const mono = Geist_Mono({ variable: "--font-mono", subsets: ["latin"], display: "swap" });
@@ -16,5 +17,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" suppressHydrationWarning className={`${display.variable} ${mono.variable}`}><body>{children}</body></html>;
+  return <html lang="en" suppressHydrationWarning className={`${display.variable} ${mono.variable}`}><body><ThemeProvider>{children}</ThemeProvider></body></html>;
 }

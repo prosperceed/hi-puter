@@ -1,28 +1,17 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
-
-type Theme = "dark" | "light";
+import { useTheme } from "next-themes";
 
 export function ThemeToggle() {
-  const theme = useSyncExternalStore(subscribe, getTheme, getServerTheme);
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem("hi-puter-theme");
-    const nextTheme: Theme = saved === "light" || saved === "dark" ? saved : "dark";
-    document.documentElement.dataset.theme = nextTheme;
-    window.dispatchEvent(new Event("hi-puter-theme-change"));
-  }, []);
+  const { resolvedTheme, setTheme } = useTheme();
+  const theme = resolvedTheme === "dark" ? "dark" : "light";
 
   function toggleTheme() {
-    const nextTheme: Theme = theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = nextTheme;
-    window.localStorage.setItem("hi-puter-theme", nextTheme);
-    window.dispatchEvent(new Event("hi-puter-theme-change"));
+    setTheme(theme === "dark" ? "light" : "dark");
   }
 
   const nextLabel = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
-  return <button className="theme-toggle" type="button" onClick={toggleTheme} aria-label={nextLabel} title={nextLabel}>{theme === "dark" ? <SunIcon /> : <MoonIcon />}</button>;
+  return <button className="theme-toggle" type="button" onClick={toggleTheme} aria-label={nextLabel} aria-pressed={theme === "dark"} title={nextLabel}>{theme === "dark" ? <SunIcon /> : <MoonIcon />}</button>;
 }
 
 function SunIcon() {
@@ -33,15 +22,3 @@ function MoonIcon() {
   return <svg className="theme-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.3A8.5 8.5 0 0 1 8.7 3.5 8.5 8.5 0 1 0 20.5 15.3Z" /></svg>;
 }
 
-function getTheme(): Theme {
-  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
-}
-
-function getServerTheme(): Theme {
-  return "dark";
-}
-
-function subscribe(callback: () => void) {
-  window.addEventListener("hi-puter-theme-change", callback);
-  return () => window.removeEventListener("hi-puter-theme-change", callback);
-}

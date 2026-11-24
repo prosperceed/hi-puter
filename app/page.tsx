@@ -9,8 +9,9 @@ import { InstallGuide } from "@/components/sections/InstallGuide";
 import { Privacy } from "@/components/sections/Privacy";
 import { WakeName } from "@/components/sections/WakeName";
 import { WhatItDoes } from "@/components/sections/WhatItDoes";
+import { BackgroundField } from "@/components/visuals/BackgroundField";
 
 export default function Home() {
   const structuredData = { "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Hi-Puter", applicationCategory: "UtilitiesApplication", operatingSystem: "Windows, Linux", description: "A local voice assistant for Windows and Linux.", offers: { "@type": "Offer", price: "0", priceCurrency: "USD" } };
-  return <><Navbar /><main><Hero /><WhatItDoes /><HowItWorks /><Commands /><WakeName /><Privacy /><InstallGuide /><Faq /><FinalCta /></main><Footer /><script type="application/ld+json">{JSON.stringify(structuredData)}</script></>;
+  return <><BackgroundField /><Navbar /><main><Hero /><WhatItDoes /><HowItWorks /><Commands /><WakeName /><Privacy /><InstallGuide /><Faq /><FinalCta /></main><Footer /><script type="application/ld+json">{JSON.stringify(structuredData)}</script></>;
 }
