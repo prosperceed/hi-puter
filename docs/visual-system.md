@@ -10,17 +10,25 @@ The voice effect is represented as a transparent frosted sphere. Its body is bui
 
 ## Tokens
 
-| Role | Light | Dark |
-| --- | --- | --- |
-| Canvas | `#d3d7fc → #cbe6f9 → #d4edf2` | `#03050f → #050818` |
-| Surface | `rgba(255,255,255,.72)` | `rgba(20,28,68,.55)` |
-| Raised surface | `#ffffff` | `rgba(14,20,48,.7)` |
-| Text | `#0a0e1a` | `#eef1ff` |
-| Muted text | `#5b6478` | `#8d96b8` |
-| Border | `rgba(255,255,255,.7)` | `rgba(150,170,255,.14)` |
-| Primary | `#5189e6 → #8cb5ed` | `#3563d6 → #4b7ff0` |
-| Signal cyan | `#6edafd` | `#6edafd` |
-| Grid | `rgba(110,210,225,.35)` | `rgba(120,170,255,.08)` |
+All tokens live as CSS variables at the top of `app/globals.css`.
+
+| Role | Variable | Light | Dark |
+| --- | --- | --- | --- |
+| Canvas | `--canvas` | `#f5f7fc` + soft blue/cyan glows | `#070a13` + indigo glows |
+| Surface | `--panel` | `rgba(255,255,255,.78)` | `rgba(17,23,40,.7)` |
+| Raised surface | `--panel-strong` | `#ffffff` | `#0f1528` |
+| Text | `--ink` | `#0b1020` | `#e9edf7` |
+| Muted text | `--muted` | `#4a5468` | `#a0a9be` |
+| Faint text | `--faint` | `#6b7489` | `#737d96` |
+| Border | `--line` / `--line-strong` | `rgba(15,23,42,.08 / .14)` | `rgba(148,163,200,.12 / .2)` |
+| Accent text + icons | `--primary` | `#2f5bea` | `#7ea2ff` |
+| Filled controls | `--brand` / `--brand-hover` | `#2f5bea` / `#2449c9` | `#3d6ef5` / `#5583ff` |
+| Signal cyan | `--accent` | `#0891b2` | `#22d3ee` |
+| Positive state | `--success` | `#059669` | `#34d399` |
+
+## Icons
+
+UI icons come from `lucide-react` (1.5–2px stroke, 13–19px in UI, 26px in feature chips). Platform logos (Windows, Linux) come from `react-icons/fa6`. Icons are always decorative (`aria-hidden`) next to a visible text label. Feature icons sit in an `.icon-chip`: a tinted rounded square using `--brand-soft` and `--brand-ring`.
 
 ## Geometry and motion
 
