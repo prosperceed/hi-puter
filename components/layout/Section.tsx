@@ -22,7 +22,7 @@ export function SectionHeading({ eyebrow, title, intro }: Pick<SectionProps, "ey
 
 export function Section({ id, eyebrow, title, intro, children, className = "" }: SectionProps) {
   return (
-    <section id={id} className={`section ${className}`}>
+    <section id={id} className={`section ticked ${className}`.trim()}>
       <Container>
         {(eyebrow || title || intro) && <SectionHeading eyebrow={eyebrow} title={title} intro={intro} />}
         {children}

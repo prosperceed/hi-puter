@@ -5,7 +5,7 @@ import { faqItems } from "@/content/site";
 
 export function Faq() {
   return (
-    <section id="faq" className="section faq-section">
+    <section id="faq" className="section ticked">
       <Container className="faq-layout">
         <SectionHeading
           eyebrow="Questions"

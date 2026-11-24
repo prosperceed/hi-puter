@@ -1,5 +1,5 @@
-import { AppWindow, AudioLines, BatteryMedium, Camera, Lock, Search, Volume2 } from "lucide-react";
-import { Section } from "@/components/layout/Section";
+import { AppWindow, ArrowRight, BatteryMedium, Camera, Lock, Search, Volume2 } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 const capabilities = [
   { label: "Open apps", icon: AppWindow },
@@ -12,33 +12,26 @@ const capabilities = [
 
 export function WhatItDoes() {
   return (
-    <Section
-      className="what-section"
-      eyebrow="The idea"
-      title="Less clicking. More doing."
-      intro="Hi-Puter turns everyday system tasks into simple voice commands. Open apps, change volume, lock your screen, take screenshots, check battery, and search the web without leaving what you are doing."
-    >
-      <div className="statement-card card">
-        <div>
-          <span className="statement-label">
-            <AudioLines size={14} aria-hidden="true" />
-            AUDIO IN / ACTION OUT
-          </span>
-          <p>
-            Say a name.
-            <br />
-            <strong>Your computer acts.</strong>
-          </p>
-        </div>
-        <ul className="capability-grid">
-          {capabilities.map(({ label, icon: Icon }) => (
-            <li className="capability" key={label}>
-              <span className="icon-chip sm" aria-hidden="true"><Icon size={17} /></span>
-              {label}
-            </li>
-          ))}
-        </ul>
+    <section className="split ticked" aria-labelledby="what-title">
+      <div className="split-copy">
+        <p className="eyebrow">The idea</p>
+        <h2 id="what-title">Less clicking. More doing.</h2>
+        <p>
+          Everyday system tasks become simple voice commands, so you never have to leave what you are doing.
+        </p>
+        <Button href="#commands" variant="soft">
+          See what to say
+          <ArrowRight className="icon-trail" size={16} aria-hidden="true" />
+        </Button>
       </div>
-    </Section>
+      <ul className="capabilities">
+        {capabilities.map(({ label, icon: Icon }) => (
+          <li className="capability" key={label}>
+            <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
+            {label}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { AtSign, Mic } from "lucide-react";
+import { AtSign, AudioLines } from "lucide-react";
 import { Section } from "@/components/layout/Section";
-import { VoiceOrb } from "@/components/visuals/VoiceOrb";
+import { Glow } from "@/components/visuals/Glow";
 
 const fallbackName = "Nova";
 const maxLength = 20;
@@ -15,41 +15,36 @@ export function WakeName() {
 
   return (
     <Section
-      className="wake-section"
       eyebrow="Make it yours"
       title="Your name, your assistant."
       intro="Pick a wake name that feels natural. See how it sounds before you install."
     >
       <div className="wake-demo">
-        <div className="wake-input-wrap card">
+        <div className="wake-input-wrap">
           <label className="field-label" htmlFor="wake-name">
             <AtSign size={14} aria-hidden="true" />
             Wake name
           </label>
-          <div className="wake-field">
-            <input
-              id="wake-name"
-              value={name}
-              onChange={(event) => setName(sanitize(event.target.value))}
-              maxLength={maxLength}
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </div>
+          <input
+            id="wake-name"
+            value={name}
+            onChange={(event) => setName(sanitize(event.target.value))}
+            maxLength={maxLength}
+            autoComplete="off"
+            spellCheck={false}
+          />
           <div className="wake-meta">
             <span>Letters, numbers, spaces</span>
             <span>{name.length}/{maxLength}</span>
           </div>
         </div>
-        <div className="wake-output card">
-          <VoiceOrb state="listening" />
+        <div className="wake-output">
+          <Glow small />
           <span className="field-label">
-            <Mic size={14} aria-hidden="true" />
+            <AudioLines size={14} aria-hidden="true" />
             Try saying
           </span>
-          <p>
-            “<strong>{safeName}</strong>, open Firefox.”
-          </p>
+          <p>“{safeName}, open Firefox.”</p>
         </div>
       </div>
     </Section>

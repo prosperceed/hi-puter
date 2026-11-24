@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
 import { Wordmark } from "@/components/brand/Wordmark";
 
 export function Footer() {
   return (
-    <footer className="footer">
+    <footer className="footer ticked">
       <div className="container footer-grid">
         <div>
           <Wordmark />
@@ -17,7 +16,6 @@ export function Footer() {
           <Link href="#install">Install</Link>
         </nav>
         <p className="footer-meta">
-          <ShieldCheck size={15} aria-hidden="true" />
           Windows + Linux · Built local-first
         </p>
       </div>
