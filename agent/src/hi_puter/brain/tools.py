@@ -17,7 +17,7 @@ import psutil
 
 from hi_puter.adapters.base import SystemAdapter
 from hi_puter.core.config import Config
-from hi_puter.nlu.catalog import Risk
+from hi_puter.nlu.catalog import SITES, Risk
 
 log = logging.getLogger("hi_puter")
 
@@ -118,6 +118,11 @@ def build_toolbox(  # noqa: PLR0915 (one closure per tool reads better than a cl
     def open_app(args: Args) -> str:
         spoken = str(args["app"]).strip()
         target = config.apps_aliases.get(spoken.lower(), spoken)
+        site = SITES.get(target.lower().removesuffix(".com"))
+        if site is not None and "web" in caps:
+            # Models often "open the app" YouTube or Gmail, which are websites.
+            adapter.open_url(f"https://{site}")
+            return f"Opened {spoken}."
         adapter.open_app(target)
         return f"Opening {spoken}."
 
@@ -216,7 +221,8 @@ def build_toolbox(  # noqa: PLR0915 (one closure per tool reads better than a cl
         tools.append(
             Tool(
                 "web_search",
-                "Search the web in the default browser.",
+                "Open a web search in the browser. Only when the user asks to search or look"
+                " something up, never to answer a question.",
                 _schema({"query": {"type": "string"}}, ["query"]),
                 web_search,
             )

@@ -6,7 +6,7 @@ from hi_puter.brain.assistant import Assistant
 from hi_puter.brain.llm import ChatReply
 from hi_puter.brain.tools import build_toolbox
 from hi_puter.core.config import Config, VoiceConfig
-from hi_puter.runtime.voice_loop import VoiceLoop
+from hi_puter.runtime.voice_loop import WAKE_WINDOW_BYTES, VoiceLoop
 
 
 def make_loop(*utterances: str | None, model: object = None, voice: VoiceConfig | None = None):  # type: ignore[no-untyped-def]
@@ -88,7 +88,7 @@ def test_no_answer_cancels_confirmation() -> None:
     assert tts.said[-1] == "Okay, I won't." and adapter.calls == []
 
 
-def test_stop_ends_session_and_clears_memory() -> None:
+def test_stop_ends_session_but_keeps_the_conversation_for_the_cache() -> None:
     model = ScriptedModel(ChatReply("Hi!"))
     loop, tts, _, source, _ = make_loop(
         "nova say hello to me", "stop listening", "volume up", model=model
@@ -96,7 +96,7 @@ def test_stop_ends_session_and_clears_memory() -> None:
     loop.step()
     assert tts.said == ["On it.", "Hi!", "Okay."]
     assert source.utterances[0] == "volume up"  # not consumed by the ended session
-    assert loop.assistant._history == []
+    assert [m["content"] for m in loop.assistant._history][:2] == ["say hello to me", "Hi!"]
 
 
 def test_own_voice_is_flushed_after_speaking() -> None:
@@ -110,3 +110,32 @@ def test_follow_up_can_be_disabled() -> None:
     loop, _, _, source, _ = make_loop("nova volume up", "volume up", voice=voice)
     loop.step()
     assert source.utterances[0] == "volume up"
+
+
+def test_background_talk_is_only_transcribed_at_the_start() -> None:
+    class CountingStt:
+        def __init__(self) -> None:
+            self.lengths: list[int] = []
+
+        def transcribe(self, audio: bytes) -> str:
+            self.lengths.append(len(audio))
+            return "so anyway we went to the market"
+
+    loop, tts, _, source, _ = make_loop()
+    stt = CountingStt()
+    loop.stt = stt
+    source.utterances.append("x" * 400_000)  # ~12 s of someone else talking
+    loop.step()
+    assert stt.lengths == [WAKE_WINDOW_BYTES] and tts.said == []
+
+
+def test_long_request_after_wake_name_is_fully_transcribed() -> None:
+    class HeadOrFull:
+        def transcribe(self, audio: bytes) -> str:
+            return "nova" if len(audio) <= WAKE_WINDOW_BYTES else "nova volume up"
+
+    loop, _, adapter, source, _ = make_loop()
+    loop.stt = HeadOrFull()
+    source.utterances.append("x" * 200_000)
+    loop.step()
+    assert adapter.calls == [("volume_change", 10)]

@@ -24,6 +24,9 @@ from hi_puter.speech.wake import match_wake
 
 log = logging.getLogger("hi_puter")
 
+# 2.5 s of 16 kHz 16-bit mono: long enough for "Hey <two-word name>" plus a pause.
+WAKE_WINDOW_BYTES = int(2.5 * 16_000 * 2)
+
 
 class VoiceLoop:
     def __init__(
@@ -58,12 +61,18 @@ class VoiceLoop:
 
     def step(self) -> None:
         """Wait for one utterance; start a session if it begins with the wake name."""
-        heard = self._hear(None)
-        if heard is None:
+        audio = self.source.next_utterance(None)
+        if audio is None:
             return
-        wake = match_wake(heard, self.wake_name, self.wake_threshold)
+        # The name comes first, so only the start of background talk is worth transcribing.
+        wake = match_wake(
+            self._transcribe(audio[:WAKE_WINDOW_BYTES]), self.wake_name, self.wake_threshold
+        )
         if wake is None:
             return
+        if len(audio) > WAKE_WINDOW_BYTES:
+            full = match_wake(self._transcribe(audio), self.wake_name, self.wake_threshold)
+            wake = full or wake
         log.info("Wake name heard (score %.2f)", wake.score)
         self.session(wake.remainder)
 
@@ -90,7 +99,8 @@ class VoiceLoop:
                             self._acknowledge()
                             request = self._hear(self.voice.prompt_timeout_seconds)
         finally:
-            self.assistant.reset()
+            # The conversation is kept: the model's cache can only be extended, and starting
+            # over makes the next request re-read the whole prompt.
             log.info("Session ended; listening for %r", self.wake_name)
 
     def _respond(self, request: str) -> Reply:
@@ -124,7 +134,10 @@ class VoiceLoop:
         audio = self.source.next_utterance(start_timeout)
         if audio is None:
             return None
+        return self._transcribe(audio) or None
+
+    def _transcribe(self, audio: bytes) -> str:
         text = self.stt.transcribe(audio).strip()
         if self.log_transcripts and text:
             log.info("Heard: %s", text)
-        return text or None
+        return text
