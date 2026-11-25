@@ -48,7 +48,9 @@ class ScriptedModel:
         self.replies = deque(replies)
         self.requests: list[list[Message]] = []
 
-    def chat(self, messages: list[Message], tools: list[dict[str, Any]]) -> ChatReply:
+    def chat(
+        self, messages: list[Message], tools: list[dict[str, Any]], timeout: float | None = None
+    ) -> ChatReply:
         self.requests.append([dict(message) for message in messages])
         return self.replies.popleft()
 

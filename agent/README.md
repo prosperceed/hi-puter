@@ -40,7 +40,14 @@ ollama pull qwen3.5:4b            # default
 | `qwen3.5:2b` | smaller | Laptops with 8 GB RAM or less, or when replies feel slow. |
 | `qwen3.5:9b` | larger | A GPU or 16 GB+ RAM; noticeably smarter on multi-step requests. |
 
-Change it in `config.toml` (see below). Without Ollama the assistant still handles simple commands and says so when a request needs the model.
+You can keep several models downloaded and switch between them at any time:
+
+```bash
+.venv/bin/hi-puter model                 # current model and everything Ollama has downloaded
+.venv/bin/hi-puter model qwen3.5:4b      # switch (restart Hi-Puter to apply)
+```
+
+Without Ollama the assistant still handles simple commands and says so when a request needs the model.
 
 ### Check everything
 

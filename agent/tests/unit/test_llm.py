@@ -113,3 +113,44 @@ def test_has_model(monkeypatch: pytest.MonkeyPatch) -> None:
     assert OllamaClient("http://localhost:11434", "qwen3.5:4b").has_model()
     assert OllamaClient("http://localhost:11434", "llama3.2").has_model()
     assert not OllamaClient("http://localhost:11434", "qwen3.5:2b").has_model()
+
+
+def test_slow_server_is_reported_as_slow_not_down(monkeypatch: pytest.MonkeyPatch) -> None:
+    def urlopen(request: Any, timeout: float) -> FakeResponse:
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(llm.urllib.request, "urlopen", urlopen)
+    with pytest.raises(ModelError, match="didn't answer within 90s"):
+        OllamaClient("http://127.0.0.1:11434", "qwen3.5:4b").chat([], [])
+
+
+def test_warm_allows_a_long_first_load(monkeypatch: pytest.MonkeyPatch) -> None:
+    timeouts: list[float] = []
+
+    def urlopen(request: Any, timeout: float) -> FakeResponse:
+        timeouts.append(timeout)
+        return FakeResponse(b"{}")
+
+    monkeypatch.setattr(llm.urllib.request, "urlopen", urlopen)
+    client = OllamaClient("http://127.0.0.1:11434", "qwen3.5:4b", timeout=90)
+    client.warm()
+    client.chat([], [])
+    assert timeouts == [300.0, 90]
+
+
+def test_warm_uses_the_same_options_as_chat(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[tuple[dict[str, Any], float]] = []
+
+    def urlopen(request: Any, timeout: float) -> FakeResponse:
+        sent.append((json.loads(request.data), timeout))
+        return FakeResponse(b"{}")
+
+    monkeypatch.setattr(llm.urllib.request, "urlopen", urlopen)
+    client = OllamaClient("http://127.0.0.1:11434", "qwen3.5:2b", context_tokens=4096)
+    client.warm()
+    client.chat([{"role": "user", "content": "hi"}], [], timeout=300)
+    (warm, warm_timeout), (chat, chat_timeout) = sent
+    # A different num_ctx would make Ollama reload the model on the first real request.
+    assert warm["options"]["num_ctx"] == chat["options"]["num_ctx"] == 4096
+    assert chat["options"]["num_predict"] == 160
+    assert warm_timeout == 300.0 and chat_timeout == 300

@@ -1,29 +1,45 @@
 import logging
 import signal
 import sys
+import time
 from threading import Event, Thread
 
 from hi_puter.adapters.factory import get_adapter
+from hi_puter.brain.assistant import Assistant
+from hi_puter.brain.llm import LOAD_TIMEOUT_SECONDS
 from hi_puter.core.config import Config, load_config
 from hi_puter.core.errors import ActionError, AudioError, ConfigError, ModelError
 from hi_puter.core.logging import configure_logging
 from hi_puter.core.paths import get_paths
-from hi_puter.runtime.assemble import build_assistant, make_model
+from hi_puter.runtime.assemble import build_assistant
 
 SPEECH_MISSING = "Speech packages are missing. Install them with: pip install -e '.[audio,speech]'"
 MIC_MISSING = "Microphone is unavailable. Check the input device (hi-puter doctor lists them)."
 
 
-def _warm_model(config: Config, log: logging.Logger) -> None:
-    model = make_model(config)
-    if model is None:
+def _warm_model(assistant: Assistant, config: Config, log: logging.Logger) -> None:
+    if assistant.model is None:
         log.info("Language model disabled; only simple commands are available.")
         return
+    started = time.monotonic()
     try:
-        model.warm()
-        log.info("Language model %s is loaded.", model.model)
+        assistant.prime(timeout=LOAD_TIMEOUT_SECONDS)
+        log.info(
+            "Language model %s is ready (%.0fs).", config.llm.model, time.monotonic() - started
+        )
     except ModelError as exc:
         log.warning("%s Simple commands still work.", exc)
+
+
+def _unload_model(assistant: Assistant, log: logging.Logger) -> None:
+    unload = getattr(assistant.model, "unload", None)
+    if unload is None:
+        return
+    try:
+        unload()
+        log.info("Language model unloaded.")
+    except ModelError as exc:
+        log.info("Could not unload the language model: %s", exc)
 
 
 def main() -> None:
@@ -40,7 +56,7 @@ def main() -> None:
     try:
         config = load_config(paths.config_file)
         assistant = build_assistant(config, paths, get_adapter())
-        Thread(target=_warm_model, args=(config, log), daemon=True).start()
+        Thread(target=_warm_model, args=(assistant, config, log), daemon=True).start()
         try:
             from hi_puter.audio.cue import play_listening_cue
             from hi_puter.audio.listener import MicListener
@@ -85,6 +101,7 @@ def main() -> None:
         with listener:
             loop.run()
         tts.close()
+        _unload_model(assistant, log)
     except (AudioError, ConfigError, ActionError) as exc:
         log.error("%s", exc)
         print(f"Hi-Puter: {exc}", file=sys.stderr)

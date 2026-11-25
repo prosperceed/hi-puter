@@ -101,3 +101,27 @@ def test_remote_model_hosts_need_opt_in() -> None:
     with pytest.raises(ConfigError, match="allow_remote"):
         remote.validate()
     dataclasses.replace(remote, llm=dataclasses.replace(remote.llm, allow_remote=True)).validate()
+
+
+def test_spoken_app_names_find_desktop_entries() -> None:
+    from hi_puter.adapters.linux.adapter import _desktop_ids
+
+    entries = [
+        ("google-chrome", "Google Chrome"),
+        ("firefox_firefox", "Firefox Web Browser"),
+        ("com.microsoft.VSCode", "Visual Studio Code"),
+        ("org.gnome.Terminal", "Terminal"),
+    ]
+    assert _desktop_ids("chrome browser", entries)[0] == "google-chrome"
+    assert _desktop_ids("Firefox", entries)[0] == "firefox_firefox"
+    assert _desktop_ids("visual studio code", entries)[0] == "com.microsoft.VSCode"
+    assert _desktop_ids("the terminal", entries)[0] == "org.gnome.Terminal"
+    assert _desktop_ids("spotify", entries)[0] == "spotify"  # unknown: plain guesses only
+
+
+def test_websites_asked_for_as_apps_open_in_the_browser() -> None:
+    adapter = FakeAdapter()
+    toolbox = build_toolbox(adapter, Config())
+    assert toolbox.call("open_app", {"app": "YouTube"}).text == "Opened YouTube."
+    toolbox.call("open_app", {"app": "spotify"})
+    assert adapter.calls == [("open_url", "https://youtube.com"), ("open_app", "spotify")]

@@ -67,7 +67,9 @@ class LlmConfig:
     max_steps: int = 5
     context_tokens: int = 4096
     timeout_seconds: float = 90.0
-    keep_alive: str = "15m"
+    # How long Ollama keeps the model in memory between requests. Reloading takes up to a
+    # minute on a slow laptop, so keep it while Hi-Puter runs; stopping Hi-Puter unloads it.
+    keep_alive: str = "24h"
     # Audio never leaves the machine; this allows sending transcripts to a non-local model host.
     allow_remote: bool = False
 

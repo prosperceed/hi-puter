@@ -5,7 +5,7 @@ from typing import Any
 from hi_puter.actions.base import ActionResult
 from hi_puter.adapters.base import SystemAdapter
 from hi_puter.core.config import Config
-from hi_puter.nlu.catalog import Intent
+from hi_puter.nlu.catalog import SITES, Intent
 from hi_puter.nlu.normalize import normalize
 
 HELP = (
@@ -19,6 +19,10 @@ def intent_call(intent: Intent, text: str = "") -> tuple[str, dict[str, Any]] | 
     slots = intent.slots
     calls: dict[str, tuple[str, dict[str, Any]]] = {
         "open_app": ("open_app", {"app": slots.get("app", "")}),
+        "open_site": (
+            "open_website",
+            {"url": SITES.get(slots.get("site", ""), slots.get("site", ""))},
+        ),
         "search": ("web_search", {"query": slots.get("query", "")}),
         "volume_set": ("set_volume", {"level": int(slots.get("level", "50"))}),
         "volume_up": ("change_volume", {"delta": 10}),

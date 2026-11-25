@@ -11,18 +11,23 @@ from hi_puter.core.errors import LifecycleError
 
 
 def _identity(pid: int) -> bool:
-    try: return "hi_puter" in " ".join(psutil.Process(pid).cmdline())
-    except (psutil.NoSuchProcess, psutil.AccessDenied): return False
+    try:
+        return "hi_puter" in " ".join(psutil.Process(pid).cmdline())
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        return False
 
 
 def is_running(pid_file: Path) -> bool:
-    try: pid = int(pid_file.read_text().strip())
-    except (OSError, ValueError): return False
+    try:
+        pid = int(pid_file.read_text().strip())
+    except (OSError, ValueError):
+        return False
     return psutil.pid_exists(pid) and _identity(pid)
 
 
 def start(pid_file: Path, foreground: bool = False) -> int:
-    if is_running(pid_file): raise LifecycleError("Hi-Puter is already running.")
+    if is_running(pid_file):
+        raise LifecycleError("Hi-Puter is already running.")
     pid_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     process = subprocess.Popen(
         [sys.executable, "-m", "hi_puter.runtime.daemon"],
@@ -30,26 +35,36 @@ def start(pid_file: Path, foreground: bool = False) -> int:
         stderr=None if foreground else subprocess.DEVNULL,
         start_new_session=not foreground and os.name != "nt",
     )
-    pid_file.write_text(str(process.pid)); os.chmod(pid_file, 0o600)
+    pid_file.write_text(str(process.pid))
+    os.chmod(pid_file, 0o600)
     if foreground:
         result = process.wait()
         pid_file.unlink(missing_ok=True)
-        if result != 0: raise LifecycleError("The daemon exited with an error.")
+        if result != 0:
+            raise LifecycleError("The daemon exited with an error.")
     else:
         time.sleep(0.25)
         if process.poll() is not None:
             pid_file.unlink(missing_ok=True)
-            raise LifecycleError("The daemon exited. Run `hi-puter start --foreground` for details.")
+            raise LifecycleError(
+                "The daemon exited. Run `hi-puter start --foreground` for details."
+            )
     return process.pid
 
 
 def stop(pid_file: Path) -> None:
-    try: pid = int(pid_file.read_text().strip())
-    except (OSError, ValueError): raise LifecycleError("Hi-Puter is not running.")
+    try:
+        pid = int(pid_file.read_text().strip())
+    except (OSError, ValueError):
+        raise LifecycleError("Hi-Puter is not running.")
     if not _identity(pid):
-        pid_file.unlink(missing_ok=True); raise LifecycleError("Refused to signal an unverified process.")
-    process = psutil.Process(pid); process.terminate()
-    try: process.wait(5)
+        pid_file.unlink(missing_ok=True)
+        raise LifecycleError("Refused to signal an unverified process.")
+    process = psutil.Process(pid)
+    process.terminate()
+    try:
+        process.wait(5)
     except psutil.TimeoutExpired:
-        process.kill(); process.wait(2)
+        process.kill()
+        process.wait(2)
     pid_file.unlink(missing_ok=True)
