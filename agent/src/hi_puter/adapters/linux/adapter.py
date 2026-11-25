@@ -73,23 +73,46 @@ class LinuxAdapter:
         run(["systemctl", command])
 
 
-def _desktop_ids(name: str) -> list[str]:
-    """Desktop entry IDs to try for a spoken app name, e.g. "visual studio code" -> code, ..."""
-    spoken = name.strip().lower()
-    ids = [spoken, spoken.replace(" ", "-"), spoken.replace(" ", "")]
-    for folder in (
-        Path("/usr/share/applications"),
-        Path.home() / ".local/share/applications",
-        Path("/var/lib/flatpak/exports/share/applications"),
-    ):
+APP_FOLDERS = (
+    Path("/usr/share/applications"),
+    Path.home() / ".local/share/applications",
+    Path("/var/lib/flatpak/exports/share/applications"),
+    Path("/var/lib/snapd/desktop/applications"),
+)
+FILLER = frozenset({"the", "a", "my", "app", "application", "program", "browser", "web"})
+
+
+def _desktop_entries(folders: tuple[Path, ...] = APP_FOLDERS) -> list[tuple[str, str]]:
+    """(entry id, display name) for installed, visible applications."""
+    entries = []
+    for folder in folders:
         if not folder.is_dir():
             continue
-        for entry in folder.glob("*.desktop"):
+        for entry in sorted(folder.glob("*.desktop")):
             try:
                 text = entry.read_text(errors="ignore")
             except OSError:
                 continue
+            if re.search(r"^NoDisplay=true$", text, re.M):
+                continue
             found = re.search(r"^Name=(.+)$", text, re.M)
-            if found and found.group(1).strip().lower() == spoken:
-                ids.insert(0, entry.stem)
-    return list(dict.fromkeys(ids))
+            entries.append((entry.stem, found.group(1).strip() if found else entry.stem))
+    return entries
+
+
+def _desktop_ids(name: str, entries: list[tuple[str, str]] | None = None) -> list[str]:
+    """Desktop entry IDs to try for a spoken app name, best match first.
+
+    "firefox" -> firefox; "chrome browser" -> google-chrome; "visual studio code" -> code.
+    """
+    spoken = name.strip().lower()
+    words = [word for word in re.findall(r"[a-z0-9]+", spoken) if word not in FILLER]
+    exact: list[str] = []
+    partial: list[str] = []
+    for entry_id, display in entries if entries is not None else _desktop_entries():
+        if display.lower() == spoken or entry_id.lower() == spoken:
+            exact.append(entry_id)
+        elif words and all(word in f"{display} {entry_id}".lower() for word in words):
+            partial.append(entry_id)
+    guesses = [spoken, spoken.replace(" ", "-"), spoken.replace(" ", "")]
+    return list(dict.fromkeys(exact + sorted(partial, key=len) + guesses))

@@ -55,5 +55,3 @@ def command(
             except (EOFError, KeyboardInterrupt):
                 answer = "no"
             say(assistant.confirm(reply.pending, is_yes(answer)).text)
-        if reply.end_session:
-            assistant.reset()

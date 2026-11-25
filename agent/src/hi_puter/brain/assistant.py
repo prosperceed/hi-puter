@@ -4,16 +4,18 @@ Simple commands go through the regex matcher and run instantly. Everything else 
 local language model, which can call several tools in a row before answering.
 """
 
+import json
 import logging
 import platform
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
+from threading import Lock
 from typing import Any
 
 from hi_puter.actions.registry import HELP, intent_call
-from hi_puter.brain.llm import ChatModel, Message
+from hi_puter.brain.llm import ChatModel, ChatReply, Message, ToolCall
 from hi_puter.brain.tools import ToolBox
 from hi_puter.core.errors import ModelError
 from hi_puter.nlu.catalog import Intent, Risk
@@ -24,11 +26,18 @@ log = logging.getLogger("hi_puter")
 
 NO_MODEL = "I can only do simple commands right now, because the language model isn't running."
 MODEL_FAILED = "I couldn't reach the language model. Simple commands still work."
+NOT_RUN = "Not run: waiting for the user to confirm an earlier action."
+ALREADY_DONE = "Already done; don't repeat it. Do the part of the request that is left."
 TOO_MANY_STEPS = "That took more steps than I'm allowed. Try breaking it into smaller requests."
 MAX_QUICK_WORDS = 4  # longer app names or queries are probably sentences: let the model read them
 COMPOUND = re.compile(r"\b(?:and|then|also|after that|plus)\b")
 YES_WORDS = frozenset({"yes", "yeah", "yep", "sure", "confirm", "do it", "go ahead", "ok", "okay"})
 MAX_SPOKEN_CHARS = 420
+GREETING = "Hello, are you ready?"
+# Conversation kept after the system prompt (~1,100 tokens with tools). About 4 characters a
+# token, so this stays well inside a 4,096-token context.
+MEMORY_CHARS = 6000
+IDLE_FORGET = timedelta(minutes=30)
 
 
 @dataclass(frozen=True)
@@ -36,6 +45,7 @@ class Pending:
     tool: str
     args: dict[str, Any]
     question: str
+    from_model: bool = False  # the model's tool call is waiting for this result
 
 
 @dataclass(frozen=True)
@@ -47,6 +57,15 @@ class Reply:
 
 
 class Assistant:
+    """Answers requests, keeping one continuous conversation with the model.
+
+    The conversation is append-only on purpose. Small hybrid models (qwen3.5) can only reuse
+    their prompt cache when a request extends the previous one exactly; anything else makes
+    Ollama re-read the whole ~1,100-token prompt, which takes 20-80 s on a laptop CPU. So every
+    exchange is recorded exactly as the model saw it, and memory is trimmed only when it grows
+    too long or after a long idle period.
+    """
+
     def __init__(
         self,
         toolbox: ToolBox,
@@ -54,20 +73,40 @@ class Assistant:
         *,
         name: str = "Nova",
         max_steps: int = 5,
-        history_turns: int = 6,
+        memory_chars: int = MEMORY_CHARS,
+        idle_forget: timedelta = IDLE_FORGET,
         clock: Callable[[], datetime] = datetime.now,
     ) -> None:
         self.toolbox = toolbox
         self.model = model
         self.name = name.title()
         self.max_steps = max_steps
-        self.history_turns = history_turns
+        self.memory_chars = memory_chars
+        self.idle_forget = idle_forget
         self.clock = clock
-        self._history: list[Message] = []
+        self._history: list[Message] = []  # exact transcript after the system prompt
+        self._last_used: datetime | None = None
+        self._lock = Lock()
 
     def reset(self) -> None:
-        """Forget the conversation (called when a voice session ends)."""
-        self._history.clear()
+        """Forget the conversation."""
+        with self._lock:
+            self._history.clear()
+
+    def prime(self, timeout: float | None = None) -> None:
+        """Load the model and hold the first exchange, so the first real request is quick.
+
+        The greeting stays as the first turn: the model has already processed the system prompt
+        and tools for it, and the next request extends it instead of starting over.
+        """
+        if self.model is None:
+            return
+        warm = getattr(self.model, "warm", None)
+        if warm is not None:
+            warm()
+        with self._lock:
+            self._history.clear()
+            self._think(GREETING, timeout=timeout)
 
     def is_quick(self, text: str) -> bool:
         """True when the request is handled by the regex matcher without the model."""
@@ -93,24 +132,36 @@ class Assistant:
         text = text.strip()
         if not text:
             return Reply("I didn't catch that.")
-        intent = self._quick_intent(text)
-        if intent is not None:
-            reply = self._run_intent(intent.action, intent_call(intent, text))
-        elif self.model is None:
-            reply = Reply(NO_MODEL)
-        else:
-            reply = self._think(text)
-        self._remember(text, reply.text)
-        return reply
+        with self._lock:
+            now = self.clock()
+            if self._last_used is not None and now - self._last_used > self.idle_forget:
+                self._history.clear()
+            self._last_used = now
+            intent = self._quick_intent(text)
+            if intent is not None:
+                reply = self._run_intent(intent.action, intent_call(intent, text))
+            elif self.model is None:
+                reply = Reply(NO_MODEL)
+            else:
+                return self._think(text)
+            self._note(text, reply.text)
+            return reply
 
     def confirm(self, pending: Pending, approved: bool) -> Reply:
-        if not approved:
-            reply = Reply("Okay, I won't.")
-        else:
-            outcome = self.toolbox.call(pending.tool, pending.args)
-            reply = Reply(outcome.text, actions=[pending.tool])
-        self._remember("yes" if approved else "no", reply.text)
-        return reply
+        with self._lock:
+            if approved:
+                outcome = self.toolbox.call(pending.tool, pending.args)
+                reply = Reply(outcome.text, actions=[pending.tool] if outcome.ok else [])
+            else:
+                reply = Reply("Okay, I won't.")
+            if pending.from_model:
+                # Answer the model's open tool call so the transcript stays a valid continuation.
+                result = reply.text if approved else "The user said no, so it was not done."
+                self._history.append({"role": "tool", "tool_name": pending.tool, "content": result})
+            else:
+                self._note("yes" if approved else "no", reply.text)
+            self._trim()
+            return reply
 
     # -- fast path ---------------------------------------------------------------------------
 
@@ -133,64 +184,121 @@ class Assistant:
 
     # -- language model ----------------------------------------------------------------------
 
-    def _think(self, text: str) -> Reply:
+    def _think(self, text: str, timeout: float | None = None) -> Reply:  # noqa: PLR0911
         if self.model is None:
             return Reply(NO_MODEL)
         messages: list[Message] = [{"role": "system", "content": self._system_prompt()}]
         messages += self._history
         messages.append({"role": "user", "content": text})
         schemas = self.toolbox.schemas()
+        parts = count_parts(text)
         done: list[str] = []
+        results: list[str] = []
+        seen: set[str] = set()
+        repeats = 0
+
+        def finish(reply: Reply) -> Reply:
+            self._history = messages[1:]
+            self._trim()
+            return reply
+
         try:
             for _ in range(self.max_steps):
-                reply = self.model.chat(messages, schemas)
+                reply = self._chat(messages, schemas, timeout)
                 if not reply.tool_calls:
-                    return Reply(speakable(reply.content) or "Done.", actions=done)
+                    messages.append(reply.as_message())  # raw, exactly as generated
+                    return finish(
+                        Reply(
+                            speakable(reply.content) or join_results(results) or "Done.",
+                            actions=done,
+                        )
+                    )
                 messages.append(reply.as_message())
-                for call in reply.tool_calls:
+                fresh = [call for call in reply.tool_calls if _call_key(call) not in seen]
+                if not fresh:
+                    # Small models sometimes re-issue calls that already ran. Point it at what is
+                    # left once; if it repeats again, what has been done is the answer.
+                    repeats += 1
+                    messages += [_tool_result(call, ALREADY_DONE) for call in reply.tool_calls]
+                    if repeats > 1:
+                        return finish(Reply(join_results(results) or "Done.", actions=done))
+                    continue
+                for index, call in enumerate(reply.tool_calls):
+                    if call not in fresh:
+                        messages.append(_tool_result(call, ALREADY_DONE))
+                        continue
+                    seen.add(_call_key(call))
                     tool = self.toolbox.get(call.name)
                     if tool is not None and tool.risk is Risk.CONFIRM:
                         question = (
                             tool.question(call.arguments) if tool.question else f"Run {call.name}?"
                         )
-                        return Reply(
-                            f"{question} Say yes to confirm.",
-                            pending=Pending(call.name, call.arguments, question),
-                            actions=done,
+                        later = reply.tool_calls[index + 1 :]
+                        messages += [_tool_result(other, NOT_RUN) for other in later]
+                        prefix = join_results(results)
+                        return finish(
+                            Reply(
+                                f"{prefix} {question} Say yes to confirm.".strip(),
+                                pending=Pending(call.name, call.arguments, question, True),
+                                actions=done,
+                            )
                         )
                     outcome = self.toolbox.call(call.name, call.arguments)
                     log.info("tool %s %s -> %s", call.name, call.arguments, outcome.text)
+                    results.append(outcome.text)
                     if outcome.ok:
                         done.append(call.name)
-                    messages.append(
-                        {"role": "tool", "tool_name": call.name, "content": outcome.text}
-                    )
+                    messages.append(_tool_result(call, outcome.text))
+                if len(seen) >= parts:
+                    # Every part of the request has had an action. The tool results are already
+                    # short spoken sentences, so skip a whole model round spent summarizing them.
+                    return finish(Reply(join_results(results), actions=done))
         except ModelError as exc:
             log.warning("Language model failed: %s", exc)
-            return Reply(MODEL_FAILED, actions=done)
-        return Reply(TOO_MANY_STEPS, actions=done)
+            # The model's cache no longer matches a clean transcript: start over next time.
+            self._history = []
+            return Reply(join_results(results) or MODEL_FAILED, actions=done)
+        return finish(Reply(join_results(results) or TOO_MANY_STEPS, actions=done))
+
+    def _chat(
+        self, messages: list[Message], schemas: list[dict[str, Any]], timeout: float | None
+    ) -> ChatReply:
+        if self.model is None:
+            raise ModelError("No language model")
+        if timeout is None:
+            return self.model.chat(messages, schemas)
+        return self.model.chat(messages, schemas, timeout=timeout)
 
     def _system_prompt(self) -> str:
-        now = self.clock()
+        # Keep this text fixed (no clock): Ollama reuses its cache only while the prompt
+        # prefix is identical, and re-reading it costs over a minute on a slow CPU.
         return (
-            f"You are {self.name}, a voice assistant running entirely on the user's "
-            f"{platform.system() or 'desktop'} computer. "
-            f"Today is {now:%A, %B} {now.day}, {now:%Y}, and the time is {now:%H:%M}.\n"
-            "Your replies are spoken aloud, so answer in one or two short, natural sentences. "
-            "Never use markdown, lists, code, emojis or URLs in replies.\n"
-            "Use the tools to act on the computer. For requests with several parts, call the tools "
-            "one after another until everything is done, then confirm briefly what you did. "
-            "Only say an action happened if its tool result says it worked. If something can't be "
-            "done with the tools, say so plainly. For general questions, answer from your own "
-            "knowledge without calling tools. If the request is unclear, ask one short question."
+            f"You are {self.name}, a voice assistant on the user's "
+            f"{platform.system() or 'desktop'} computer. Replies are spoken: one or two short "
+            "sentences, no markdown, lists, emojis or links.\n"
+            "Use tools to act on the computer. If a request needs several actions, call all of "
+            "them in one reply. Never repeat an action that already ran. Only claim an action "
+            "worked if its result says so. Use current_time for the date or time.\n"
+            "Answer questions yourself, in words, without tools, unless the user asks you to "
+            "search. If a request is unclear, ask one short question."
         )
 
-    def _remember(self, user: str, assistant: str) -> None:
+    def _note(self, user: str, assistant: str) -> None:
+        """Record an exchange the model did not take part in, so it still has the context."""
         self._history += [
             {"role": "user", "content": user},
             {"role": "assistant", "content": assistant},
         ]
-        self._history = self._history[-2 * self.history_turns :]
+        self._trim()
+
+    def _trim(self) -> None:
+        """Drop the oldest turns once memory is too long (costs one full prompt re-read)."""
+        if _size(self._history) <= self.memory_chars:
+            return
+        while self._history and (
+            _size(self._history) > self.memory_chars // 2 or self._history[0]["role"] != "user"
+        ):
+            self._history.pop(0)
 
 
 def speakable(text: str) -> str:
@@ -207,6 +315,28 @@ def speakable(text: str) -> str:
     end = max(cut.rfind(". "), cut.rfind("? "), cut.rfind("! "))
     # Prefer ending on a full sentence, unless that would leave almost nothing.
     return cut[: end + 1] if end > MAX_SPOKEN_CHARS // 5 else cut.rsplit(" ", 1)[0] + "."
+
+
+def count_parts(text: str) -> int:
+    """How many separate things a request asks for: "open x, search y and mute" -> 3."""
+    clauses = re.split(r",|;|\b(?:and then|and|then|also|after that|plus)\b", text.lower())
+    return max(1, sum(1 for clause in clauses if re.search(r"[a-z0-9]", clause)))
+
+
+def join_results(results: list[str]) -> str:
+    return " ".join(dict.fromkeys(result for result in results if result))
+
+
+def _tool_result(call: ToolCall, content: str) -> Message:
+    return {"role": "tool", "tool_name": call.name, "content": content}
+
+
+def _size(messages: list[Message]) -> int:
+    return sum(len(str(m.get("content", ""))) + len(str(m.get("tool_calls", ""))) for m in messages)
+
+
+def _call_key(call: ToolCall) -> str:
+    return f"{call.name}:{json.dumps(call.arguments, sort_keys=True, default=str).lower()}"
 
 
 def is_yes(text: str | None) -> bool:

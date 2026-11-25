@@ -8,4 +8,5 @@ def test_valid_transition() -> None:
 
 
 def test_invalid_transition() -> None:
-    with pytest.raises(ValueError): transition(State.LISTENING, State.EXECUTING)
+    with pytest.raises(ValueError):
+        transition(State.LISTENING, State.EXECUTING)

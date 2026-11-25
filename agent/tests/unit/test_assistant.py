@@ -1,17 +1,19 @@
 from datetime import datetime
+from itertools import pairwise
 from pathlib import Path
 
 from fakes import FakeAdapter, ScriptedModel, call
 
 from hi_puter.brain.assistant import (
+    GREETING,
     MODEL_FAILED,
     NO_MODEL,
-    TOO_MANY_STEPS,
     Assistant,
+    count_parts,
     is_yes,
     speakable,
 )
-from hi_puter.brain.llm import ChatReply
+from hi_puter.brain.llm import ChatReply, ToolCall
 from hi_puter.brain.tools import build_toolbox
 from hi_puter.core.config import Config
 from hi_puter.core.errors import ModelError
@@ -37,24 +39,60 @@ def test_simple_command_skips_the_model() -> None:
     assert model.requests == []
 
 
-def test_multi_step_request_runs_every_tool_then_answers() -> None:
+def test_multi_step_request_runs_every_tool_and_speaks_results_without_a_summary_round() -> None:
     model = ScriptedModel(
         call("open_app", app="firefox"),
         call("web_search", query="local first apps"),
         call("set_volume", level=30),
-        ChatReply("Firefox is open with your search, and volume is at 30 percent."),
     )
     assistant, adapter = make(model)
     request = "open firefox, look up local first apps and turn the volume to thirty"
     assert not assistant.is_quick(request)
     reply = assistant.handle(request)
-    assert reply.text.startswith("Firefox is open")
+    assert reply.text == (
+        "Opening firefox. Searching the web for local first apps. Volume set to 30 percent."
+    )
     assert reply.actions == ["open_app", "web_search", "set_volume"]
     assert [name for name, _ in adapter.calls] == ["open_app", "open_url", "volume_set"]
+    # Three parts, three actions: no fourth round asking the model to summarize.
+    assert len(model.requests) == 3
     # The model sees each tool's result before deciding the next step.
-    last = model.requests[-1]
-    assert [m["role"] for m in last[-2:]] == ["assistant", "tool"]
-    assert last[-1]["content"] == "Volume set to 30 percent."
+    assert [m["role"] for m in model.requests[-1][-2:]] == ["assistant", "tool"]
+
+
+def test_parallel_tool_calls_need_only_one_model_round() -> None:
+    both = ChatReply(
+        "", [ToolCall("open_app", {"app": "spotify"}), ToolCall("set_mute", {"muted": True})]
+    )
+    model = ScriptedModel(both)
+    assistant, adapter = make(model)
+    reply = assistant.handle("open spotify and mute everything")
+    assert reply.text == "Opening spotify. Muted."
+    assert len(model.requests) == 1 and len(adapter.calls) == 2
+
+
+def test_repeated_calls_are_not_run_twice_and_the_rest_still_happens() -> None:
+    # The sequence a real qwen3.5:2b produced: it re-opened Spotify before getting to YouTube.
+    model = ScriptedModel(
+        call("open_app", app="spotify"),
+        call("web_search", query="who wants to be a millionaire"),
+        call("open_app", app="spotify"),
+        call("open_website", url="youtube.com"),
+    )
+    assistant, adapter = make(model)
+    reply = assistant.handle("open spotify, search who wants to be a millionaire and open youtube")
+    assert [name for name, _ in adapter.calls] == ["open_app", "open_url", "open_url"]
+    assert reply.text.endswith("Opened youtube.com.")
+    nudge = model.requests[3][-1]
+    assert nudge["role"] == "tool" and "Already done" in nudge["content"]
+
+
+def test_a_model_that_keeps_repeating_is_stopped() -> None:
+    model = ScriptedModel(*[call("current_time") for _ in range(4)])
+    assistant, _ = make(model)
+    reply = assistant.handle("tell me the time, then the time, then the time again")
+    assert reply.text == "It's 3:04 PM on Wednesday, November 25."
+    assert len(model.requests) == 3  # first call, one nudge, then stop
 
 
 def test_compound_requests_go_to_the_model_even_if_the_regex_matches() -> None:
@@ -66,12 +104,18 @@ def test_compound_requests_go_to_the_model_even_if_the_regex_matches() -> None:
     assert make(None)[0].is_quick("open firefox and search for cats")
 
 
-def test_tool_failures_are_reported_to_the_model_not_raised() -> None:
-    model = ScriptedModel(call("take_screenshot"), ChatReply("I couldn't take a screenshot here."))
+def test_tool_failures_are_spoken_not_raised() -> None:
+    model = ScriptedModel(call("take_screenshot"))
     assistant, _ = make(model)
     reply = assistant.handle("grab my screen please")
-    assert reply.text == "I couldn't take a screenshot here."
-    assert model.requests[-1][-1]["content"] == "That isn't supported on this computer yet."
+    assert reply.text == "That isn't supported on this computer yet."
+    assert reply.actions == []
+
+
+def test_general_questions_still_get_the_models_answer() -> None:
+    model = ScriptedModel(ChatReply("Tokyo."))
+    assistant, _ = make(model)
+    assert assistant.handle("what's the capital of japan").text == "Tokyo."
 
 
 def test_risky_action_from_the_model_waits_for_confirmation() -> None:
@@ -122,10 +166,18 @@ def test_model_errors_fall_back_politely() -> None:
     assert assistant.handle("summarize my day").text == MODEL_FAILED
 
 
-def test_step_limit() -> None:
-    model = ScriptedModel(*[call("current_time") for _ in range(5)])
-    assistant, _ = make(model)
-    assert assistant.handle("keep checking the clock forever").text == TOO_MANY_STEPS
+def test_step_limit_speaks_what_was_done() -> None:
+    model = ScriptedModel(*[call("set_volume", level=level) for level in range(1, 9)])
+    assistant, adapter = make(model)
+    reply = assistant.handle("one, two, three, four, five, six, seven, eight")
+    assert len(adapter.calls) == 5  # max_steps
+    assert reply.text.endswith("Volume set to 5 percent.")
+
+
+def test_count_parts() -> None:
+    assert count_parts("open firefox") == 1
+    assert count_parts("open spotify, search for jazz and open youtube") == 3
+    assert count_parts("mute, then lock the screen") == 2
 
 
 def test_stop_ends_the_session() -> None:
@@ -150,3 +202,91 @@ def test_speakable_strips_markdown_and_reasoning() -> None:
 def test_is_yes() -> None:
     assert is_yes("Yes please") and is_yes("yeah, go ahead") and is_yes("okay do it")
     assert not is_yes("no") and not is_yes("not sure") and not is_yes(None)
+
+
+def test_system_prompt_is_stable_so_ollama_can_cache_it() -> None:
+    first, _ = make(ScriptedModel())
+    later = Assistant(
+        first.toolbox, ScriptedModel(), name="nova", clock=lambda: datetime(2027, 1, 1, 23, 59)
+    )  # type: ignore[arg-type]
+    assert first._system_prompt() == later._system_prompt()
+
+
+def test_prime_loads_the_model_and_keeps_the_greeting_as_the_first_turn() -> None:
+    class Warmable(ScriptedModel):
+        warmed = 0
+
+        def warm(self) -> None:
+            self.warmed += 1
+
+    model = Warmable(ChatReply("Yes, I'm ready."), ChatReply("Paris."))
+    assistant, _ = make(model)
+    assistant.prime(timeout=300)
+    assert model.warmed == 1
+    greeting = model.requests[0]
+    assert greeting[0] == {"role": "system", "content": assistant._system_prompt()}
+    assert greeting[1] == {"role": "user", "content": GREETING}
+    assistant.handle("what is the capital of france")
+    # The first real request extends the greeting exchange the model already processed.
+    assert model.requests[1][:3] == [*greeting, {"role": "assistant", "content": "Yes, I'm ready."}]
+
+
+def _extends(previous: list[dict[str, object]], current: list[dict[str, object]]) -> bool:
+    return current[: len(previous)] == previous
+
+
+def test_every_model_request_extends_the_previous_one_exactly() -> None:
+    """Hybrid models (qwen3.5) only reuse their cache when the new prompt continues the old one."""
+    model = ScriptedModel(
+        ChatReply("Tokyo."),
+        ChatReply("About 14 million."),
+        ChatReply(
+            "", [ToolCall("open_app", {"app": "spotify"}), ToolCall("set_mute", {"muted": True})]
+        ),
+        call("power", action="shutdown"),
+        ChatReply("Okay, it stays on."),
+    )
+    assistant, _ = make(model)
+    assistant.handle("what's the capital of japan")
+    assistant.handle("volume up")  # fast path: recorded, but no model call
+    assistant.handle("and how many people live there")
+    assistant.handle("open spotify and mute everything")
+    pending = assistant.handle("I'm done, power the computer off")
+    assert pending.pending is not None and pending.pending.from_model
+    assistant.confirm(pending.pending, approved=False)
+    assistant.handle("thanks, leave it on")
+    requests = model.requests
+    assert len(requests) == 5
+    for before, after in pairwise(requests):
+        assert _extends(before, after)
+    # The open tool call was answered before the next user turn.
+    last = requests[-1]
+    assert last[-2] == {
+        "role": "tool",
+        "tool_name": "power",
+        "content": "The user said no, so it was not done.",
+    }
+
+
+def test_memory_is_trimmed_at_a_user_turn_when_too_long() -> None:
+    model = ScriptedModel(*[ChatReply("x" * 400) for _ in range(30)])
+    assistant, _ = make(model)
+    for number in range(30):
+        assistant.handle(f"tell me something long number {number}")
+    history = assistant._history
+    assert sum(len(str(m["content"])) for m in history) <= assistant.memory_chars
+    assert history[0]["role"] == "user"
+
+
+def test_memory_is_forgotten_after_a_long_idle_period() -> None:
+    times = iter(
+        [datetime(2026, 11, 25, 9, 0), datetime(2026, 11, 25, 9, 5), datetime(2026, 11, 25, 10, 0)]
+    )
+    model = ScriptedModel(ChatReply("Hi."), ChatReply("Hello again."), ChatReply("Morning."))
+    toolbox = build_toolbox(FakeAdapter(), Config())
+    assistant = Assistant(toolbox, model, name="nova", clock=lambda: next(times))  # type: ignore[arg-type]
+    assistant.handle("good morning to you")
+    assistant.handle("how are you doing")
+    assert len(model.requests[1]) == 4  # system, user, assistant, user
+    assistant.handle("are you still there")  # 55 minutes later
+    assert len(model.requests[2]) == 2  # system, user

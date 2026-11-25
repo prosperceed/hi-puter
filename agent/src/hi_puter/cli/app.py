@@ -2,7 +2,7 @@ import contextlib
 
 import typer
 
-from hi_puter.cli.commands import chat, doctor, lifecycle, rename, setup
+from hi_puter.cli.commands import chat, doctor, lifecycle, model, rename, setup
 from hi_puter.core.errors import ConfigError
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
@@ -13,6 +13,7 @@ app.command("status")(lifecycle.status_command)
 app.command("rename")(rename.command)
 app.command("doctor")(doctor.command)
 app.command("chat")(chat.command)
+app.command("model")(model.command)
 
 
 @app.command(hidden=True)
