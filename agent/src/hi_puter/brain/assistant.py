@@ -26,9 +26,12 @@ log = logging.getLogger("hi_puter")
 
 NO_MODEL = "I can only do simple commands right now, because the language model isn't running."
 MODEL_FAILED = "I couldn't reach the language model. Simple commands still work."
+WHICH_APP = "Which app should I close?"
+NOT_NAMED = "Not closed: the user did not name this app. Ask which app to close."
 NOT_RUN = "Not run: waiting for the user to confirm an earlier action."
 ALREADY_DONE = "Already done; don't repeat it. Do the part of the request that is left."
 TOO_MANY_STEPS = "That took more steps than I'm allowed. Try breaking it into smaller requests."
+FILLER = frozenset({"the", "a", "my", "app", "apps", "application", "window", "program"})
 MAX_QUICK_WORDS = 4  # longer app names or queries are probably sentences: let the model read them
 COMPOUND = re.compile(r"\b(?:and|then|also|after that|plus)\b")
 YES_WORDS = frozenset({"yes", "yeah", "yep", "sure", "confirm", "do it", "go ahead", "ok", "okay"})
@@ -184,7 +187,7 @@ class Assistant:
 
     # -- language model ----------------------------------------------------------------------
 
-    def _think(self, text: str, timeout: float | None = None) -> Reply:  # noqa: PLR0911
+    def _think(self, text: str, timeout: float | None = None) -> Reply:  # noqa: PLR0911, PLR0915
         if self.model is None:
             return Reply(NO_MODEL)
         messages: list[Message] = [{"role": "system", "content": self._system_prompt()}]
@@ -192,10 +195,17 @@ class Assistant:
         messages.append({"role": "user", "content": text})
         schemas = self.toolbox.schemas()
         parts = count_parts(text)
+        users = [str(m["content"]) for m in self._history if m.get("role") == "user"]
+        prior = users[-1] if users else ""  # "get rid of it" refers to the previous request
         done: list[str] = []
         results: list[str] = []
         seen: set[str] = set()
         repeats = 0
+
+        def said() -> str:
+            # Ask "which app?" only when nothing else was done.
+            done_text = [result for result in results if result != WHICH_APP]
+            return join_results(done_text or results)
 
         def finish(reply: Reply) -> Reply:
             self._history = messages[1:]
@@ -209,7 +219,7 @@ class Assistant:
                     messages.append(reply.as_message())  # raw, exactly as generated
                     return finish(
                         Reply(
-                            speakable(reply.content) or join_results(results) or "Done.",
+                            speakable(reply.content) or said() or "Done.",
                             actions=done,
                         )
                     )
@@ -221,7 +231,7 @@ class Assistant:
                     repeats += 1
                     messages += [_tool_result(call, ALREADY_DONE) for call in reply.tool_calls]
                     if repeats > 1:
-                        return finish(Reply(join_results(results) or "Done.", actions=done))
+                        return finish(Reply(said() or "Done.", actions=done))
                     continue
                 for index, call in enumerate(reply.tool_calls):
                     if call not in fresh:
@@ -235,7 +245,7 @@ class Assistant:
                         )
                         later = reply.tool_calls[index + 1 :]
                         messages += [_tool_result(other, NOT_RUN) for other in later]
-                        prefix = join_results(results)
+                        prefix = said()
                         return finish(
                             Reply(
                                 f"{prefix} {question} Say yes to confirm.".strip(),
@@ -243,6 +253,12 @@ class Assistant:
                                 actions=done,
                             )
                         )
+                    if call.name == "close_app" and not _named(call.arguments, text, prior):
+                        # Small models "close all apps" by listing every app they have heard of.
+                        log.info("refused close_app %s: not named by the user", call.arguments)
+                        results.append(WHICH_APP)
+                        messages.append(_tool_result(call, NOT_NAMED))
+                        continue
                     outcome = self.toolbox.call(call.name, call.arguments)
                     log.info("tool %s %s -> %s", call.name, call.arguments, outcome.text)
                     results.append(outcome.text)
@@ -252,13 +268,13 @@ class Assistant:
                 if len(seen) >= parts:
                     # Every part of the request has had an action. The tool results are already
                     # short spoken sentences, so skip a whole model round spent summarizing them.
-                    return finish(Reply(join_results(results), actions=done))
+                    return finish(Reply(said(), actions=done))
         except ModelError as exc:
             log.warning("Language model failed: %s", exc)
             # The model's cache no longer matches a clean transcript: start over next time.
             self._history = []
-            return Reply(join_results(results) or MODEL_FAILED, actions=done)
-        return finish(Reply(join_results(results) or TOO_MANY_STEPS, actions=done))
+            return Reply(said() or MODEL_FAILED, actions=done)
+        return finish(Reply(said() or TOO_MANY_STEPS, actions=done))
 
     def _chat(
         self, messages: list[Message], schemas: list[dict[str, Any]], timeout: float | None
@@ -279,6 +295,9 @@ class Assistant:
             "Use tools to act on the computer. If a request needs several actions, call all of "
             "them in one reply. Never repeat an action that already ran. Only claim an action "
             "worked if its result says so. Use current_time for the date or time.\n"
+            "Only use a tool that does exactly what was asked: opening is not closing, and "
+            "locking or shutting down is not closing an app. If no tool fits, say you can't do "
+            "that yet.\n"
             "Answer questions yourself, in words, without tools, unless the user asks you to "
             "search. If a request is unclear, ask one short question."
         )
@@ -325,6 +344,15 @@ def count_parts(text: str) -> int:
 
 def join_results(results: list[str]) -> str:
     return " ".join(dict.fromkeys(result for result in results if result))
+
+
+def _named(arguments: dict[str, Any], *requests: str) -> bool:
+    """Whether the app a tool call names was actually mentioned by the user."""
+    app_words = {
+        word for word in normalize(str(arguments.get("app", ""))).split() if word not in FILLER
+    }
+    said = set(" ".join(normalize(request) for request in requests).split())
+    return bool(app_words) and bool(app_words & said)
 
 
 def _tool_result(call: ToolCall, content: str) -> Message:

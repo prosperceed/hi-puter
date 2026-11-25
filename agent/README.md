@@ -75,7 +75,11 @@ Try the assistant without a microphone:
 
 ## What it can do
 
-Open apps and websites, search the web, set/raise/lower/mute the volume, lock the screen, take screenshots, report battery/CPU/memory/disk, tell the time, save notes (to `notes.md` in the data folder), and shut down/restart/suspend with confirmation. The model can combine these ("open YouTube and set the volume to 20") and answer general questions from its own knowledge.
+Open and close apps ("close Spotify", "quit VS Code"), open websites, search the web, play, pause, skip or go back in music and video apps ("pause Spotify", "next song", "go back a song"), set/raise/lower/mute the volume, lock the screen, take screenshots, report battery/CPU/memory/disk, tell the time, save notes (to `notes.md` in the data folder), and shut down/restart/suspend with confirmation. The model can combine these ("open YouTube and set the volume to 20") and answer general questions from its own knowledge.
+
+- **Closing** asks the app to quit normally, like clicking its close button; it never force-kills, never touches system processes, and won't close the terminal Hi-Puter runs in. The model can only close apps you actually named, so "close all my apps" gets a "which app?" instead.
+- **Media control** works with any app that supports MPRIS (Spotify, VLC, Rhythmbox, browsers playing media). Name the app, or leave it out to control whatever is playing.
+- **Start Hi-Puter from a normal terminal.** Apps installed as snaps (Spotify, Firefox) only accept media controls from regular programs; started from inside a sandboxed tool, Hi-Puter will say the app blocked the request.
 
 ## Configuration
 

@@ -8,7 +8,10 @@ from hi_puter.brain.llm import ChatReply, Message, ToolCall
 class FakeAdapter:
     def __init__(self, caps: frozenset[str] | None = None) -> None:
         self.calls: list[tuple[str, Any]] = []
-        self._caps = caps or frozenset({"volume", "lock", "screenshot", "apps", "web", "power"})
+        self._caps = caps or frozenset(
+            {"volume", "lock", "screenshot", "apps", "web", "power", "media"}
+        )
+        self.running = {"firefox", "spotify"}
 
     def capabilities(self) -> frozenset[str]:
         return self._caps
@@ -36,6 +39,14 @@ class FakeAdapter:
 
     def open_url(self, url: str) -> None:
         self.calls.append(("open_url", url))
+
+    def close_app(self, name: str) -> int:
+        self.calls.append(("close_app", name))
+        return 1 if name.lower() in self.running else 0
+
+    def media(self, action: str, app: str | None) -> str:
+        self.calls.append(("media", (action, app)))
+        return (app or "Spotify").title()
 
     def power(self, kind: str) -> None:
         self.calls.append(("power", kind))

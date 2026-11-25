@@ -14,4 +14,5 @@ class ActionResult:
 class Action(Protocol):
     id: str
     risk: Risk
+
     def run(self, slots: dict[str, str], adapter: SystemAdapter) -> ActionResult: ...

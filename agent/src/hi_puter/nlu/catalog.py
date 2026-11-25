@@ -34,6 +34,8 @@ SITES = {
     "chatgpt": "chatgpt.com",
 }
 _SITE_NAMES = "|".join(sorted(SITES, key=len, reverse=True))
+# Players named without "on": "pause spotify", "next song spotify".
+_PLAYERS = r"(?:spotify|vlc|rhythmbox|youtube music|youtube|firefox|chrome|chromium|music)"
 _DEVICE = r"(?: (?:the|my))?(?: computer| pc| laptop)?"
 
 # Order matters: the first pattern that matches wins.
@@ -56,6 +58,45 @@ PATTERNS: tuple[tuple[str, str, str, Risk], ...] = (
         "open_site",
         r"^(?:open|go to) (?P<site>[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:/\S*)?)$",
         "open_site",
+        Risk.SAFE,
+    ),
+    (
+        "close_app",
+        r"^(?:close|quit|exit|kill|shut|turn off)(?: down)? "
+        r"(?!(?:the |my )?(?:computer|pc|laptop|screen)$|(?:all|everything)\b)"
+        r"(?:the |my )?(?P<app>.+?)(?: app| application| window)?(?: down| off)?"
+        r"(?: for me| now| right now)?$",
+        "close_app",
+        Risk.SAFE,
+    ),
+    (
+        "media_pause",
+        r"^(?:pause|stop (?:the )?(?:music|song|playback|video)"
+        r"|(?:put|keep) (?:the |my )?(?:music|song) on hold|hold (?:the |my )?(?:music|song))"
+        r"(?: (?:the )?(?:music|song|video))?"
+        rf"(?: (?:on|in) (?P<app>.+)|(?P<player> {_PLAYERS}))?$",
+        "media",
+        Risk.SAFE,
+    ),
+    (
+        "media_play",
+        rf"^(?:play|resume|unpause|continue)(?: (?:the )?(?:music|song|video|playback))?"
+        rf"(?: (?:on|in) (?P<app>.+)|(?P<player> {_PLAYERS}))?$",
+        "media",
+        Risk.SAFE,
+    ),
+    (
+        "media_next",
+        rf"^(?:(?:play |go to |skip to )?(?:the )?next|skip(?: this)?)(?: (?:song|track|one))?"
+        rf"(?: (?:on|in) (?P<app>.+)|(?P<player> {_PLAYERS}))?$",
+        "media",
+        Risk.SAFE,
+    ),
+    (
+        "media_previous",
+        rf"^(?:(?:play |go back to |go to )?(?:the )?(?:previous|last)|go back(?: a| one)?|back)"
+        rf"(?: (?:song|track|one))?(?: (?:on|in) (?P<app>.+)|(?P<player> {_PLAYERS}))?$",
+        "media",
         Risk.SAFE,
     ),
     ("open_app", r"^(?:open|launch|start) (?P<app>.+)$", "open_app", Risk.SAFE),

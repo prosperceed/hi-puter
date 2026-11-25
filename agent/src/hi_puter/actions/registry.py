@@ -19,6 +19,7 @@ def intent_call(intent: Intent, text: str = "") -> tuple[str, dict[str, Any]] | 
     slots = intent.slots
     calls: dict[str, tuple[str, dict[str, Any]]] = {
         "open_app": ("open_app", {"app": slots.get("app", "")}),
+        "close_app": ("close_app", {"app": slots.get("app", "")}),
         "open_site": (
             "open_website",
             {"url": SITES.get(slots.get("site", ""), slots.get("site", ""))},
@@ -34,6 +35,9 @@ def intent_call(intent: Intent, text: str = "") -> tuple[str, dict[str, Any]] | 
         "time": ("current_time", {}),
         "power": ("power", {"action": intent.id}),
     }
+    if intent.action == "media":
+        player = (slots.get("app") or slots.get("player") or "").strip() or None
+        return ("media_control", {"action": intent.id.removeprefix("media_"), "app": player})
     return calls.get(intent.action)
 
 

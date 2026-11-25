@@ -153,6 +153,21 @@ def build_toolbox(  # noqa: PLR0915 (one closure per tool reads better than a cl
         adapter.set_mute(muted)
         return "Muted." if muted else "Unmuted."
 
+    def close_app(args: Args) -> str:
+        spoken = str(args["app"]).strip()
+        target = config.apps_aliases.get(spoken.lower(), spoken)
+        if adapter.close_app(target) == 0:
+            return f"{spoken} isn't running."
+        return f"Closed {spoken}."
+
+    def media_control(args: Args) -> str:
+        action = str(args["action"]).lower()
+        if action not in MEDIA_WORDS:
+            raise ValueError(f"unknown media action {action}")
+        app = str(args.get("app") or "").strip() or None
+        player = adapter.media(action, app)
+        return MEDIA_WORDS[action].format(app=player)
+
     def lock_screen(_args: Args) -> str:
         adapter.lock()
         return "Screen locked."
@@ -200,11 +215,37 @@ def build_toolbox(  # noqa: PLR0915 (one closure per tool reads better than a cl
         tools.append(
             Tool(
                 "open_app",
-                "Open an application installed on this computer, by name.",
+                "Open (launch) an application by name. Never use this to close or quit an app.",
                 _schema(
                     {"app": {"type": "string", "description": "App name, e.g. firefox"}}, ["app"]
                 ),
                 open_app,
+            )
+        )
+        tools.append(
+            Tool(
+                "close_app",
+                "Close (quit, exit) a running application by name, like closing its window.",
+                _schema(
+                    {"app": {"type": "string", "description": "App name, e.g. spotify"}}, ["app"]
+                ),
+                close_app,
+            )
+        )
+    if "media" in caps:
+        tools.append(
+            Tool(
+                "media_control",
+                "Play, pause, skip to the next track, or go back to the previous track in a music"
+                " or video app such as Spotify. Leave app empty for whatever is playing.",
+                _schema(
+                    {
+                        "action": {"type": "string", "enum": list(MEDIA_WORDS)},
+                        "app": {"type": "string", "description": "e.g. spotify; optional"},
+                    },
+                    ["action"],
+                ),
+                media_control,
             )
         )
     if "web" in caps:
@@ -261,7 +302,14 @@ def build_toolbox(  # noqa: PLR0915 (one closure per tool reads better than a cl
             )
         )
     if "lock" in caps:
-        tools.append(Tool("lock_screen", "Lock the screen.", _schema(), lock_screen))
+        tools.append(
+            Tool(
+                "lock_screen",
+                "Lock the screen. Only when the user asks to lock the screen or computer.",
+                _schema(),
+                lock_screen,
+            )
+        )
     if "screenshot" in caps:
         tools.append(
             Tool(
@@ -293,7 +341,8 @@ def build_toolbox(  # noqa: PLR0915 (one closure per tool reads better than a cl
         tools.append(
             Tool(
                 "power",
-                "Shut down, restart, or suspend the computer. The user is asked to confirm.",
+                "Shut down, restart, or suspend the whole computer. Only when the user asks for"
+                " exactly that, never to close apps. The user is asked to confirm.",
                 _schema({"action": {"type": "string", "enum": list(POWER_WORDS)}}, ["action"]),
                 power,
                 Risk.CONFIRM,
@@ -304,6 +353,15 @@ def build_toolbox(  # noqa: PLR0915 (one closure per tool reads better than a cl
         )
     return ToolBox(tools)
 
+
+# media action -> what is said afterwards
+MEDIA_WORDS = {
+    "play": "Playing {app}.",
+    "pause": "Paused {app}.",
+    "toggle": "Toggled playback on {app}.",
+    "next": "Next track on {app}.",
+    "previous": "Previous track on {app}.",
+}
 
 # action -> (confirmation question, result)
 POWER_WORDS = {
