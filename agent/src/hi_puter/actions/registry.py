@@ -1,16 +1,48 @@
-from hi_puter.adapters.base import SystemAdapter
+"""Maps the fast regex intents onto toolbox calls, so simple commands skip the language model."""
+
+from typing import Any
+
 from hi_puter.actions.base import ActionResult
+from hi_puter.adapters.base import SystemAdapter
+from hi_puter.core.config import Config
 from hi_puter.nlu.catalog import Intent
+from hi_puter.nlu.normalize import normalize
+
+HELP = (
+    "I can open apps and websites, search the web, change the volume, lock the screen, "
+    "take screenshots, check the battery and time, save notes, and handle multi-step requests."
+)
 
 
-def execute(intent: Intent, adapter: SystemAdapter) -> ActionResult:
-    if intent.action not in adapter.capabilities() and intent.action not in {"help", "time", "battery", "stop"}:
+def intent_call(intent: Intent, text: str = "") -> tuple[str, dict[str, Any]] | None:
+    """The tool name and arguments for an intent, or None for intents answered without a tool."""
+    slots = intent.slots
+    calls: dict[str, tuple[str, dict[str, Any]]] = {
+        "open_app": ("open_app", {"app": slots.get("app", "")}),
+        "search": ("web_search", {"query": slots.get("query", "")}),
+        "volume_set": ("set_volume", {"level": int(slots.get("level", "50"))}),
+        "volume_up": ("change_volume", {"delta": 10}),
+        "volume_down": ("change_volume", {"delta": -10}),
+        "mute": ("set_mute", {"muted": not normalize(text).startswith("unmute")}),
+        "lock": ("lock_screen", {}),
+        "screenshot": ("take_screenshot", {}),
+        "battery": ("system_status", {}),
+        "time": ("current_time", {}),
+        "power": ("power", {"action": intent.id}),
+    }
+    return calls.get(intent.action)
+
+
+def execute(
+    intent: Intent, adapter: SystemAdapter, config: Config | None = None, text: str = ""
+) -> ActionResult:
+    from hi_puter.brain.tools import build_toolbox
+
+    call = intent_call(intent, text)
+    if call is None:
+        return ActionResult(True, "Okay." if intent.action == "stop" else HELP)
+    toolbox = build_toolbox(adapter, config or Config())
+    if call[0] not in toolbox:
         return ActionResult(False, "That action is not supported on this system.")
-    if intent.action == "open_app": adapter.open_app(intent.slots["app"]); return ActionResult(True, "Opening it.")
-    if intent.action == "volume_set": adapter.volume_set(int(intent.slots["level"])); return ActionResult(True, "Volume updated.")
-    if intent.action == "volume_up": adapter.volume_change(10); return ActionResult(True, "Volume up.")
-    if intent.action == "volume_down": adapter.volume_change(-10); return ActionResult(True, "Volume down.")
-    if intent.action == "mute": adapter.set_mute(True); return ActionResult(True, "Muted.")
-    if intent.action == "lock": adapter.lock(); return ActionResult(True, "Screen locked.")
-    if intent.action == "power": adapter.power(intent.id); return ActionResult(True, "Power command sent.")
-    return ActionResult(True, "I can open apps, control volume, lock the screen, take screenshots, and search the web.")
+    outcome = toolbox.call(*call)
+    return ActionResult(outcome.ok, outcome.text)
