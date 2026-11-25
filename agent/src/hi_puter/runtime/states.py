@@ -1,7 +1,7 @@
-from enum import StrEnum
+from enum import Enum
 
 
-class State(StrEnum):
+class State(str, Enum):  # StrEnum needs Python 3.11
     LISTENING = "listening"
     CAPTURING = "capturing"
     TRANSCRIBING = "transcribing"

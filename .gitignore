@@ -51,14 +51,10 @@ agent/.ruff_cache/
 agent/.mypy_cache/
 .venv
 
-# Agents
-/.agents
-/.aws
-/.codex
-
-.agents
-.aws
-.codex
-.AGENTS.md
-# local editor tooling
+# AI coding-agent files: kept on this machine, never in the repo
+/.agents/
 /.claude/
+/.codex/
+/AGENTS.md
+/CLAUDE.md
+/.aws/

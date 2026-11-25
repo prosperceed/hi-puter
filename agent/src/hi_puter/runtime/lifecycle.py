@@ -1,9 +1,8 @@
-from pathlib import Path
 import os
-import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import psutil
 
@@ -56,7 +55,7 @@ def stop(pid_file: Path) -> None:
     try:
         pid = int(pid_file.read_text().strip())
     except (OSError, ValueError):
-        raise LifecycleError("Hi-Puter is not running.")
+        raise LifecycleError("Hi-Puter is not running.") from None
     if not _identity(pid):
         pid_file.unlink(missing_ok=True)
         raise LifecycleError("Refused to signal an unverified process.")

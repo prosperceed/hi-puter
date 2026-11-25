@@ -17,13 +17,23 @@ An offline-first voice assistant daemon for Windows and Linux. Say its name, it 
 - **Risky actions** (shut down, restart, suspend) are always read back as a question and only run after a spoken "yes".
 - **"Stop listening"** ends the conversation; memory of it is cleared.
 
-## Setup
+## Install
 
 ```bash
-cd agent
+pipx install "hi-puter[audio,speech]"     # or: pip install "hi-puter[audio,speech]"
+hi-puter setup                            # pick a wake name
+```
+
+The `audio` and `speech` extras add the microphone, voice detection and speech recognition. On Linux, replies are spoken with `espeak-ng` (`sudo apt install espeak-ng`). The commands below are written as `hi-puter ...`; from a source checkout, use `.venv/bin/hi-puter ...`.
+
+### From source
+
+```bash
+git clone https://github.com/prosperceed/hi-puter.git
+cd hi-puter/agent
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev,audio,speech]'
-.venv/bin/hi-puter setup          # pick a wake name
+.venv/bin/hi-puter setup
 ```
 
 ### Language model (for anything beyond simple commands)
@@ -43,8 +53,8 @@ ollama pull qwen3.5:4b            # default
 You can keep several models downloaded and switch between them at any time:
 
 ```bash
-.venv/bin/hi-puter model                 # current model and everything Ollama has downloaded
-.venv/bin/hi-puter model qwen3.5:4b      # switch (restart Hi-Puter to apply)
+hi-puter model                 # current model and everything Ollama has downloaded
+hi-puter model qwen3.5:4b      # switch (restart Hi-Puter to apply)
 ```
 
 Without Ollama the assistant still handles simple commands and says so when a request needs the model.
@@ -52,7 +62,7 @@ Without Ollama the assistant still handles simple commands and says so when a re
 ### Check everything
 
 ```bash
-.venv/bin/hi-puter doctor
+hi-puter doctor
 ```
 
 It reports the speech packages, microphones, voice, whether Ollama is running and whether the model is downloaded.
@@ -60,17 +70,17 @@ It reports the speech packages, microphones, voice, whether Ollama is running an
 ## Running
 
 ```bash
-.venv/bin/hi-puter start --foreground   # see logs in the terminal
-.venv/bin/hi-puter start                # run in the background
-.venv/bin/hi-puter status
-.venv/bin/hi-puter stop
+hi-puter start --foreground   # see logs in the terminal
+hi-puter start                # run in the background
+hi-puter status
+hi-puter stop
 ```
 
 Try the assistant without a microphone:
 
 ```bash
-.venv/bin/hi-puter chat --dry-run       # type requests; actions are printed, not performed
-.venv/bin/hi-puter chat --speak         # real actions, replies spoken aloud
+hi-puter chat --dry-run       # type requests; actions are printed, not performed
+hi-puter chat --speak         # real actions, replies spoken aloud
 ```
 
 ## What it can do
@@ -132,6 +142,15 @@ editor = "code"
 - Audio is processed in memory and never written to disk or sent anywhere.
 - Transcripts go only to the model host, which must be `localhost` unless `llm.allow_remote = true`.
 - Transcripts are not logged unless `logging.log_transcripts = true`.
+
+## Releasing
+
+A GitHub workflow (`.github/workflows/agent.yml`) tests, builds and publishes the package to PyPI when a version tag is pushed:
+
+1. Bump `__version__` in `src/hi_puter/__init__.py` and commit it.
+2. Tag and push: `git tag v0.1.1 && git push origin v0.1.1`.
+
+The workflow refuses to publish if the tag doesn't match `__version__`. It can also be run by hand from the Actions tab to publish to TestPyPI first.
 
 ## Development
 

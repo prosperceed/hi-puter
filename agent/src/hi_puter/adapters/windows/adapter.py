@@ -30,7 +30,7 @@ class WindowsAdapter:
         raise NotImplementedError
 
     def open_app(self, name: str) -> None:
-        os.startfile(name)  # type: ignore[attr-defined]
+        os.startfile(name)  # type: ignore[attr-defined]  # noqa: S606 (opens the app, no shell)
 
     def close_app(self, name: str) -> int:
         return close_app(name)

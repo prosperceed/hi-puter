@@ -10,5 +10,6 @@ def configure_logging(path: Path, foreground: bool = False) -> logging.Logger:
     handler = RotatingFileHandler(path, maxBytes=1_000_000, backupCount=3)
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     logger.addHandler(handler)
-    if foreground: logger.addHandler(logging.StreamHandler())
+    if foreground:
+        logger.addHandler(logging.StreamHandler())
     return logger
