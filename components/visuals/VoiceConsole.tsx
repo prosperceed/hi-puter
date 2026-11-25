@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowUp, AudioLines, Check, Loader, Mic } from "lucide-react";
+import { ArrowUp, Check, Loader, Mic } from "lucide-react";
+import { Mark } from "@/components/brand/Mark";
 
 const exchanges = [
   { say: "Nova, open Firefox and search for local-first apps.", reply: "Opened Firefox with your search" },
@@ -29,7 +30,7 @@ export function VoiceConsole() {
     <div className="console" role="img" aria-label="Example: saying “Nova, open Firefox” and Hi-Puter opening it">
       <div className="console-label" aria-hidden="true">
         <strong>
-          <AudioLines size={13} />
+          <Mark size={16} />
           Nova
         </strong>
         <span>On-device</span>
