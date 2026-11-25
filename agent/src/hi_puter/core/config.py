@@ -1,15 +1,16 @@
 import dataclasses
 import os
+import sys
 import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, TypeVar
 from urllib.parse import urlparse
 
-try:
+if sys.version_info >= (3, 11):
     import tomllib
-except ModuleNotFoundError:  # Python 3.10
-    import tomli as tomllib  # type: ignore[no-redef]
+else:  # Python 3.10; a version check (unlike try/except) is understood by mypy
+    import tomli as tomllib
 import tomli_w
 
 from hi_puter.core.errors import ConfigError
