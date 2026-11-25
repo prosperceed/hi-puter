@@ -94,7 +94,7 @@ export default function SetupGuide() {
             <p className="docs-lede">
               Everything Hi-Puter needs runs on your own computer: the assistant, the speech
               recognition that lets it hear you, a voice to answer with, and a local AI model to
-              think with. This guide installs all four and checks they work together.
+              think with. One install and one guided setup put all four in place.
             </p>
           </header>
 
@@ -129,7 +129,7 @@ export default function SetupGuide() {
               <DocSection
                 id="pieces"
                 title="How it fits together"
-                intro="Hi-Puter is made of four parts. The install steps add them in this order, and hi-puter doctor checks each one."
+                intro="Hi-Puter is made of four parts. pipx installs the first two; hi-puter setup adds the voice libraries and the local AI, then checks all four."
               >
                 <ol className="piece-grid">
                   {pieces.map((piece, index) => {
@@ -161,7 +161,7 @@ export default function SetupGuide() {
               <DocSection
                 id="models"
                 title="Choose a model"
-                intro="The model is Hi-Puter's brain. Bigger models understand more but need more memory; pick by how much RAM your computer has."
+                intro="The model is Hi-Puter's brain. Setup picks one for you by how much RAM your computer has; bigger models understand more but need more memory."
               >
                 <div className="model-table" role="table" aria-label="Models by memory">
                   <div className="model-row model-head" role="row">
@@ -190,7 +190,7 @@ export default function SetupGuide() {
               <DocSection
                 id="check"
                 title="Check everything"
-                intro="hi-puter doctor checks each piece. On a working setup every line says PASS:"
+                intro="Setup ends with this check, and hi-puter doctor runs it any time. On a working setup every line says PASS:"
               >
                 <pre className="doctor-output" aria-label="Example output of hi-puter doctor">
                   {doctorOutput.split("\n").map((line) => (

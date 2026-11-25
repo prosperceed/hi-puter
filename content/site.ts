@@ -5,7 +5,7 @@ export const site = {
 } as const;
 
 export const installCommands = {
-  install: 'pipx install "hi-puter[audio,speech]"',
+  install: "pipx install hi-puter",
   setup: "hi-puter setup",
   start: "hi-puter start",
   stop: "hi-puter stop",
@@ -30,7 +30,7 @@ export const faqItems = [
   {
     question: "What do I need to install?",
     answer:
-      "Three things: Hi-Puter with its speech extras, a voice for replies (espeak-ng on Linux), and Ollama with a local model. The setup guide walks through each step and how to check they all work.",
+      "Just Hi-Puter: pipx install hi-puter, then hi-puter setup. Setup adds the voice and audio libraries, Ollama and the right AI model for your computer, asking before each install, and checks everything works.",
   },
   {
     question: "Does it send my audio to the cloud?",

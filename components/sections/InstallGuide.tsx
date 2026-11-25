@@ -17,8 +17,8 @@ export function InstallGuide() {
     <Section
       id="install"
       eyebrow="Start here"
-      title="Five steps to your first “Nova”."
-      intro="Hi-Puter, its ears and its brain all install on your computer. Allow about ten minutes, most of it downloading."
+      title="Four steps to your first “Nova”."
+      intro="One install, then a guided setup that handles the rest. Allow about ten minutes, most of it downloading."
     >
       <div className="install-layout">
         <div className="install-main">

@@ -21,78 +21,55 @@ export const shells: Record<Platform, { label: string; prompt: string }> = {
   Windows: { label: "PowerShell", prompt: "PS>" },
 };
 
+const setupStep: SetupStep = {
+  id: "setup",
+  title: "Run setup",
+  why: "It names your assistant, then adds whatever is still missing: the voice and audio libraries, Ollama, and the AI model that fits your RAM. It asks before installing anything and finishes by checking it all works.",
+  commands: ["hi-puter setup"],
+  note: "In a hurry? hi-puter setup --yes accepts the recommended choices. Setup is safe to run again at any time.",
+};
+
+const startStep: SetupStep = {
+  id: "start",
+  title: "Start talking",
+  why: "Say your wake name and wait for “Listening”, then ask for anything.",
+  commands: ["hi-puter start"],
+};
+
 export const setupSteps: Record<Platform, readonly SetupStep[]> = {
   Linux: [
     {
-      id: "system",
-      title: "Install the system packages",
-      why: "A voice for spoken replies, the audio library the microphone needs, and pipx to install Hi-Puter cleanly.",
-      commands: ["sudo apt install pipx espeak-ng libportaudio2", "pipx ensurepath"],
-      note: "Open a new terminal after pipx ensurepath. Fedora: sudo dnf install pipx espeak-ng portaudio. Arch: sudo pacman -S python-pipx espeak-ng portaudio.",
+      id: "pipx",
+      title: "Get pipx",
+      why: "pipx installs command-line apps like Hi-Puter in their own space. Already have it? Skip this step.",
+      commands: ["sudo apt install pipx", "pipx ensurepath"],
+      note: "Open a new terminal afterwards. Fedora: sudo dnf install pipx. Arch: sudo pacman -S python-pipx.",
     },
     {
       id: "app",
-      title: "Install Hi-Puter with speech",
-      why: "The audio and speech extras add the microphone, voice detection and on-device speech recognition.",
-      commands: ['pipx install "hi-puter[audio,speech]"'],
+      title: "Install Hi-Puter",
+      why: "One package brings everything it needs to hear and speak: microphone access, voice detection, speech recognition and voices.",
+      commands: ["pipx install hi-puter"],
     },
-    {
-      id: "model",
-      title: "Install the local AI",
-      why: "Ollama runs the language model on your computer. It handles anything beyond simple commands, and nothing leaves your machine.",
-      commands: ["curl -fsSL https://ollama.com/install.sh | sh", "ollama pull qwen3.5:4b"],
-      note: "Have 8 GB of RAM? Pull qwen3.5:2b instead, then run hi-puter model qwen3.5:2b.",
-    },
-    {
-      id: "check",
-      title: "Set up and check",
-      why: "Choose the name you'll call it by, then confirm every piece reports PASS.",
-      commands: ["hi-puter setup", "hi-puter doctor"],
-    },
-    {
-      id: "start",
-      title: "Start talking",
-      why: "Say your wake name and wait for “Listening”. The first start downloads the speech model, about 150 MB.",
-      commands: ["hi-puter start"],
-    },
+    setupStep,
+    startStep,
   ],
   Windows: [
     {
-      id: "system",
-      title: "Install Python and pipx",
+      id: "pipx",
+      title: "Get Python and pipx",
       why: "Hi-Puter needs Python 3.10 or newer, and pipx installs it in its own space.",
-      commands: [
-        "winget install Python.Python.3.12",
-        "py -m pip install --user pipx",
-        "py -m pipx ensurepath",
-      ],
-      note: "Open a new PowerShell window after ensurepath. Using the python.org installer instead? Tick “Add python.exe to PATH”.",
+      commands: ["winget install Python.Python.3.12", "py -m pip install --user pipx", "py -m pipx ensurepath"],
+      note: "Open a new PowerShell window afterwards. Using the python.org installer instead? Tick “Add python.exe to PATH”.",
     },
     {
       id: "app",
-      title: "Install Hi-Puter with speech",
-      why: "The speech extras add the microphone and speech recognition; the windows extra adds Windows system access and voices.",
-      commands: ['pipx install "hi-puter[audio,speech,windows]"'],
+      title: "Install Hi-Puter",
+      why: "One package brings everything it needs to hear and speak: microphone access, voice detection, speech recognition and voices.",
+      commands: ["pipx install hi-puter"],
     },
-    {
-      id: "model",
-      title: "Install the local AI",
-      why: "Ollama runs the language model on your computer. It handles anything beyond simple commands, and nothing leaves your machine.",
-      commands: ["winget install Ollama.Ollama", "ollama pull qwen3.5:4b"],
-      note: "Have 8 GB of RAM? Pull qwen3.5:2b instead, then run hi-puter model qwen3.5:2b.",
-    },
-    {
-      id: "check",
-      title: "Set up and check",
-      why: "Choose the name you'll call it by, then confirm every piece reports PASS.",
-      commands: ["hi-puter setup", "hi-puter doctor"],
-    },
-    {
-      id: "start",
-      title: "Start talking",
-      why: "Say your wake name and wait for “Listening”. The first start downloads the speech model, about 150 MB.",
-      commands: ["hi-puter start"],
-    },
+    { ...setupStep, note: "Setup installs Ollama with winget when you agree. " + (setupStep.note ?? "") },
+    startStep,
   ],
 };
 
@@ -112,7 +89,7 @@ export const requirements = [
 /** The four pieces Hi-Puter is made of, for the "how it fits together" overview. */
 export const pieces = [
   { name: "Hi-Puter", role: "The assistant", detail: "Listens for its name, runs actions and speaks results." },
-  { name: "Speech extras", role: "Its ears", detail: "Microphone, voice detection and Whisper speech recognition." },
+  { name: "Speech recognition", role: "Its ears", detail: "Microphone, voice detection and Whisper, all included in the install." },
   { name: "Voice", role: "Its voice", detail: "espeak-ng on Linux, built-in voices on Windows." },
   { name: "Ollama + model", role: "Its brain", detail: "A local language model for questions and multi-step requests." },
 ] as const;
@@ -152,20 +129,20 @@ export const firstRunTips = [
 
 export const troubleshooting = [
   {
+    question: "Something says FAIL after setup",
+    answer: "Run hi-puter setup again: it skips whatever already works and retries the rest. If a step needs your password and you skipped it, setup shows the exact command to run yourself.",
+  },
+  {
     question: "doctor says “Speech packages: missing”",
-    answer: 'Hi-Puter was installed without its speech extras. Reinstall it with them: pipx install --force "hi-puter[audio,speech]".',
+    answer: "The install didn't finish. Run pipx reinstall hi-puter, then hi-puter setup.",
   },
   {
     question: "doctor says “Microphone: no input devices”",
-    answer: "Plug in or enable a microphone and allow access in your system's privacy settings. On Linux, also make sure libportaudio2 is installed.",
+    answer: "Plug in or enable a microphone and allow access in your system's privacy settings, then run hi-puter doctor again.",
   },
   {
     question: "doctor says “Ollama: not reachable”",
-    answer: "Ollama isn't running. Start it from your apps menu, or run ollama serve in a terminal, then check again.",
-  },
-  {
-    question: "doctor says “Language model: not downloaded”",
-    answer: "Download the model it names, for example ollama pull qwen3.5:4b, or switch to one you have with hi-puter model.",
+    answer: "Ollama isn't running. Start it from your apps menu or with ollama serve, or run hi-puter setup to start it for you.",
   },
   {
     question: "“hi-puter: command not found”",
@@ -196,6 +173,6 @@ export const fromSource = [
   "git clone https://github.com/prosperceed/hi-puter.git",
   "cd hi-puter/agent",
   "python3 -m venv .venv",
-  ".venv/bin/pip install -e '.[audio,speech]'",
+  ".venv/bin/pip install -e .",
   ".venv/bin/hi-puter setup",
 ] as const;
