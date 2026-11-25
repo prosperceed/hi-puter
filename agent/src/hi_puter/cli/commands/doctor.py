@@ -14,11 +14,23 @@ def _has(module: str) -> bool:
     return importlib.util.find_spec(module) is not None
 
 
+Check = tuple[str, str, str]  # (PASS/WARN/FAIL, label, detail)
+
+
 def command() -> None:
     """Check the local Hi-Puter installation."""
+    results = collect_checks()
+    for status, label, detail in results:
+        typer.echo(f"{status:<5} {label:<16} {detail}")
+    if any(status == FAIL for status, _, _ in results):
+        raise typer.Exit(1)
+
+
+def collect_checks() -> list[Check]:
+    """Every check doctor runs, also used at the end of hi-puter setup."""
     paths = get_paths()
     paths.ensure()
-    results: list[tuple[str, str, str]] = [
+    results: list[Check] = [
         (PASS if sys.version_info >= (3, 10) else FAIL, "Python", sys.version.split()[0]),
     ]
     config = Config()
@@ -32,18 +44,14 @@ def command() -> None:
         name for name in ("sounddevice", "webrtcvad", "faster_whisper", "numpy") if not _has(name)
     ]
     results.append(
-        (FAIL, "Speech packages", f"missing {', '.join(missing)}; pip install -e '.[audio,speech]'")
+        (FAIL, "Speech packages", f"missing {', '.join(missing)}; run: pipx reinstall hi-puter")
         if missing
         else (PASS, "Speech packages", "sounddevice, webrtcvad, faster-whisper")
     )
     results.append(_microphones())
     results.append(_voice(config))
     results.extend(_model(config))
-
-    for status, label, detail in results:
-        typer.echo(f"{status:<5} {label:<16} {detail}")
-    if any(status == FAIL for status, _, _ in results):
-        raise typer.Exit(1)
+    return results
 
 
 def _microphones() -> tuple[str, str, str]:
@@ -54,6 +62,8 @@ def _microphones() -> tuple[str, str, str]:
 
         devices = list_input_devices()
     except Exception as exc:
+        if "portaudio" in str(exc).lower():
+            return (FAIL, "Microphone", "the PortAudio library is missing; run: hi-puter setup")
         return (FAIL, "Microphone", f"cannot list devices: {exc}")
     if not devices:
         return (FAIL, "Microphone", "no input devices found")
@@ -67,7 +77,7 @@ def _voice(config: Config) -> tuple[str, str, str]:
         return (PASS, "Voice", "espeak-ng")
     if _has("pyttsx3"):
         return (PASS, "Voice", "pyttsx3")
-    return (WARN, "Voice", "no speech engine; install espeak-ng or pip install pyttsx3")
+    return (WARN, "Voice", "no voice installed; run: hi-puter setup")
 
 
 def _model(config: Config) -> list[tuple[str, str, str]]:
@@ -85,7 +95,7 @@ def _model(config: Config) -> list[tuple[str, str, str]]:
             (
                 FAIL,
                 "Ollama",
-                f"not reachable at {config.llm.host}; install from https://ollama.com and start it",
+                f"not reachable at {config.llm.host}; run: hi-puter setup",
             )
         ]
     try:

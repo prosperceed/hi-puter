@@ -13,7 +13,7 @@ from hi_puter.core.logging import configure_logging
 from hi_puter.core.paths import get_paths
 from hi_puter.runtime.assemble import build_assistant
 
-SPEECH_MISSING = "Speech packages are missing. Install them with: pip install -e '.[audio,speech]'"
+SPEECH_MISSING = "Speech packages are missing. Reinstall Hi-Puter with: pipx reinstall hi-puter"
 MIC_MISSING = "Microphone is unavailable. Check the input device (hi-puter doctor lists them)."
 
 

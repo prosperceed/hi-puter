@@ -20,11 +20,22 @@ An offline-first voice assistant daemon for Windows and Linux. Say its name, it 
 ## Install
 
 ```bash
-pipx install "hi-puter[audio,speech]"     # or: pip install "hi-puter[audio,speech]"
-hi-puter setup                            # pick a wake name
+pipx install hi-puter
+hi-puter setup
+hi-puter start
 ```
 
-The `audio` and `speech` extras add the microphone, voice detection and speech recognition. On Linux, replies are spoken with `espeak-ng` (`sudo apt install espeak-ng`). The commands below are written as `hi-puter ...`; from a source checkout, use `.venv/bin/hi-puter ...`.
+`pipx install` brings everything Hi-Puter needs to hear and speak: microphone access, voice detection, Whisper speech recognition and voices. `hi-puter setup` then walks through the rest, asking before anything that needs your password:
+
+1. **Name**: what you'll call your assistant.
+2. **Voice and microphone**: on Linux, installs the PortAudio and espeak-ng system libraries if they're missing (apt, dnf, pacman or zypper).
+3. **Local AI**: installs [Ollama](https://ollama.com) with its official installer (winget on Windows) and starts it.
+4. **Language model**: picks the model that fits your RAM and downloads it with a progress bar.
+5. **Speech recognition**: downloads the speech model so the first start is instant.
+
+It finishes with `hi-puter doctor`'s checks. Every step is safe to re-run, a failed step never stops the others, and `hi-puter setup --yes` accepts the recommended choices without asking.
+
+The commands below are written as `hi-puter ...`; from a source checkout, use `.venv/bin/hi-puter ...`.
 
 ### From source
 
@@ -32,16 +43,16 @@ The `audio` and `speech` extras add the microphone, voice detection and speech r
 git clone https://github.com/prosperceed/hi-puter.git
 cd hi-puter/agent
 python3 -m venv .venv
-.venv/bin/pip install -e '.[dev,audio,speech]'
+.venv/bin/pip install -e '.[dev]'
 .venv/bin/hi-puter setup
 ```
 
 ### Language model (for anything beyond simple commands)
 
-The assistant uses [Ollama](https://ollama.com) to run a model locally. Install it, then pull a model:
+The assistant uses [Ollama](https://ollama.com) to run a model locally. `hi-puter setup` installs it and picks a model by your computer's memory: `qwen3.5:2b` under 12 GB of RAM, `qwen3.5:4b` otherwise. To get another one yourself:
 
 ```bash
-ollama pull qwen3.5:4b            # default
+ollama pull qwen3.5:9b
 ```
 
 | Model | Download | Use when |

@@ -17,6 +17,9 @@ class WhisperTranscriber:
     def __init__(self, model: str = "base.en", compute_type: str = "int8", hint: str = "") -> None:
         from faster_whisper import WhisperModel
 
+        from hi_puter.onboarding.speech_setup import use_plain_downloads
+
+        use_plain_downloads()  # a first start downloads the model; avoid Xet stalls
         self._model = WhisperModel(model, device="cpu", compute_type=compute_type)
         self._language = "en" if model.endswith(".en") else None
         # Priming with the wake name and command words makes Whisper spell them the way we expect.

@@ -8,6 +8,7 @@ import json
 import logging
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from typing import Any, Protocol
@@ -18,6 +19,7 @@ log = logging.getLogger("hi_puter")
 
 Message = dict[str, Any]
 LOAD_TIMEOUT_SECONDS = 300.0
+PULL_IDLE_TIMEOUT = 120.0
 
 
 @dataclass(frozen=True)
@@ -120,6 +122,38 @@ class OllamaClient:
             "options": self._options(),
         }
         self._post("/api/generate", body, timeout=max(self.timeout, LOAD_TIMEOUT_SECONDS))
+
+    def pull(self, on_progress: Callable[[str, int, int], None] | None = None) -> None:
+        """Download the model through Ollama, reporting (status, bytes done, bytes total)."""
+        request = urllib.request.Request(  # noqa: S310 (scheme checked below)
+            f"{self.host}/api/pull",
+            data=json.dumps({"model": self.model, "stream": True}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        if not request.full_url.startswith(("http://", "https://")):
+            raise ModelError(f"Refusing to contact {request.full_url}")
+        try:
+            # The timeout applies to each read, so a slow but steady download never trips it.
+            with urllib.request.urlopen(request, timeout=PULL_IDLE_TIMEOUT) as response:  # noqa: S310
+                for raw in response:
+                    if not raw.strip():
+                        continue
+                    event = json.loads(raw)
+                    if "error" in event:
+                        raise ModelError(f"Ollama couldn't download {self.model}: {event['error']}")
+                    if on_progress is not None:
+                        on_progress(
+                            str(event.get("status", "")),
+                            int(event.get("completed") or 0),
+                            int(event.get("total") or 0),
+                        )
+        except urllib.error.HTTPError as exc:
+            raise ModelError(f"Ollama error {exc.code}: {_error_detail(exc)}") from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise ModelError(f"Download of {self.model} stopped: {exc}") from exc
+        except json.JSONDecodeError as exc:
+            raise ModelError("Ollama returned an unreadable response.") from exc
 
     def unload(self) -> None:
         """Free the model's memory now instead of when keep_alive runs out."""
