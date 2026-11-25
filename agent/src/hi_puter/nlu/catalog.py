@@ -20,7 +20,7 @@ PATTERNS: tuple[tuple[str, str, str, Risk], ...] = (
     ("suspend", r"^(?:suspend|sleep)$", "power", Risk.CONFIRM),
     ("open_app", r"^(?:open|launch) (?P<app>.+)$", "open_app", Risk.SAFE),
     ("search", r"^(?:search for|google) (?P<query>.+)$", "search", Risk.SAFE),
-    ("volume_set", r"^(?:set )?volume to (?P<level>\d{1,3})(?: percent)?$", "volume_set", Risk.SAFE),
+    ("volume_set", r"^(?:set |turn )?(?:the )?volume (?:to|at) (?P<level>\d{1,3})(?: percent)?$", "volume_set", Risk.SAFE),
     ("volume_up", r"^(?:volume )?up$", "volume_up", Risk.SAFE),
     ("volume_down", r"^(?:volume )?down$", "volume_down", Risk.SAFE),
     ("mute", r"^(?:mute|unmute)$", "mute", Risk.SAFE),

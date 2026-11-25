@@ -24,9 +24,12 @@ def is_running(pid_file: Path) -> bool:
 def start(pid_file: Path, foreground: bool = False) -> int:
     if is_running(pid_file): raise LifecycleError("Hi-Puter is already running.")
     pid_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    kwargs: dict[str, object] = {}
-    if not foreground and os.name != "nt": kwargs["start_new_session"] = True
-    process = subprocess.Popen([sys.executable, "-m", "hi_puter.runtime.daemon"], stdout=None if foreground else subprocess.DEVNULL, stderr=None if foreground else subprocess.DEVNULL, **kwargs)
+    process = subprocess.Popen(
+        [sys.executable, "-m", "hi_puter.runtime.daemon"],
+        stdout=None if foreground else subprocess.DEVNULL,
+        stderr=None if foreground else subprocess.DEVNULL,
+        start_new_session=not foreground and os.name != "nt",
+    )
     pid_file.write_text(str(process.pid)); os.chmod(pid_file, 0o600)
     if foreground:
         result = process.wait()
