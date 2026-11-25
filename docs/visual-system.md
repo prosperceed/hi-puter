@@ -30,8 +30,12 @@ All tokens are CSS variables at the top of `app/globals.css`. Dark is the defaul
 
 ## Type
 
-- **Geist** for everything, set light: headlines at weight 400 with `-0.03em` to `-0.035em` tracking.
+- **Instrument Sans** for everything, set tight: body at `-0.011em`, headlines at weight 400 with `-0.04em` to `-0.045em` tracking.
 - **Geist Mono** for eyebrows, labels, step numbers and commands.
+
+## Mark
+
+The logo is a face: two pill eyes and a smile, tilted 10° for character, with no container. It is drawn in `--mark` (`#1f5eff` on light, `#6b96ff` on dark and inside always-dark panels). The source of truth is `components/brand/Mark.tsx`; `app/icon.svg`, `app/apple-icon.tsx` (white on blue, full-bleed for iOS) and `app/opengraph-image.tsx` repeat the same geometry. It appears in the nav and footer wordmark, the console and wake-name panels, the 404/docs/download screens and the loading screen.
 
 ## Components
 

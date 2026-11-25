@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     agentFeedback: true,
+    // A restored Turbopack build cache on Vercel shipped stale CSS for a new commit
+    // (new markup, old globals.css). Builds are fast enough without it.
+    turbopackFileSystemCacheForBuild: false,
   },
   cacheComponents: true,
   partialPrefetching: true,

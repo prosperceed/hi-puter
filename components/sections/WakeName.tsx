@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { AtSign, AudioLines } from "lucide-react";
+import { AtSign } from "lucide-react";
+import { Mark } from "@/components/brand/Mark";
 import { Section } from "@/components/layout/Section";
 import { Glow } from "@/components/visuals/Glow";
 
@@ -41,7 +42,7 @@ export function WakeName() {
         <div className="wake-output">
           <Glow small />
           <span className="field-label">
-            <AudioLines size={14} aria-hidden="true" />
+            <Mark size={16} />
             Try saying
           </span>
           <p>“{safeName}, open Firefox.”</p>
