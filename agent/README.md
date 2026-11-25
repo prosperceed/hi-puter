@@ -79,6 +79,9 @@ Open and close apps ("close Spotify", "quit VS Code"), open websites, search the
 
 - **Closing** asks the app to quit normally, like clicking its close button; it never force-kills, never touches system processes, and won't close the terminal Hi-Puter runs in. The model can only close apps you actually named, so "close all my apps" gets a "which app?" instead.
 - **Media control** works with any app that supports MPRIS (Spotify, VLC, Rhythmbox, browsers playing media). Name the app, or leave it out to control whatever is playing.
+- **Screenshots**: "take a screenshot" saves the whole screen to `~/Pictures/Screenshots`; "screenshot of a window" (or an area) opens the desktop's screenshot tool so you pick. On GNOME, a silent capture needs a one-time permission; if it's refused, the screenshot tool opens instead.
+- **Screen recording**: "start recording" / "record my screen for 30 seconds" / "bring up the screen recorder", then "stop recording". Uses GNOME's built-in recorder and saves to `~/Videos/Screencasts` (recordings stop after an hour if forgotten).
+- **Writing documents**: "write a letter to my landlord about the roof", "help me draft an email", or just "write a document". Then explain what you want in your own words, as long as you need, and say "done" (or pause for 10 seconds). Hi-Puter writes it up properly: it keeps every point, fact and name you gave, fixes misheard words and self-corrections, follows the form (letter, email, report, essay...) and never invents details, using `[placeholders]` for anything missing. It saves Markdown to `~/Documents/Hi-Puter` and opens it. Then say "make it shorter", "more formal" or "add a closing paragraph" to revise it, or "open the document". Writing takes about a minute and a half on a laptop CPU; if it fails, what you said is saved so nothing is lost.
 - **Start Hi-Puter from a normal terminal.** Apps installed as snaps (Spotify, Firefox) only accept media controls from regular programs; started from inside a sandboxed tool, Hi-Puter will say the app blocked the request.
 
 ## Configuration
@@ -112,6 +115,12 @@ host = "http://127.0.0.1:11434"
 max_steps = 5                # most tool calls per request
 temperature = 0.2
 allow_remote = false         # must be true to use a model server on another machine
+
+[documents]
+folder = "~/Documents/Hi-Puter"
+open_after_writing = true
+pause_seconds = 10.0         # silence that ends a dictation
+model = ""                   # e.g. "qwen3.5:4b" for better writing (needs more RAM)
 
 [apps.aliases]
 browser = "firefox"

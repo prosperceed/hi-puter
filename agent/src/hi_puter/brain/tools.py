@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote_plus, urlparse
 
 import psutil
@@ -18,6 +18,9 @@ import psutil
 from hi_puter.adapters.base import SystemAdapter
 from hi_puter.core.config import Config
 from hi_puter.nlu.catalog import SITES, Risk
+
+if TYPE_CHECKING:
+    from hi_puter.brain.writer import Writer
 
 log = logging.getLogger("hi_puter")
 
@@ -92,6 +95,14 @@ def _clamp_int(value: Any, low: int, high: int) -> int:
     return max(low, min(high, round(float(value))))
 
 
+def _duration(seconds: int) -> str:
+    minutes, rest = divmod(seconds, 60)
+    if not minutes:
+        return f"{rest} seconds"
+    text = f"{minutes} minute{'s' if minutes != 1 else ''}"
+    return f"{text} and {rest} seconds" if rest else text
+
+
 def normalize_url(raw: str) -> str:
     url = raw.strip()
     if "://" not in url:
@@ -111,9 +122,26 @@ def build_toolbox(  # noqa: PLR0915 (one closure per tool reads better than a cl
     *,
     notes_file: Path | None = None,
     clock: Callable[[], datetime] = datetime.now,
+    writer: "Writer | None" = None,
 ) -> ToolBox:
     caps = adapter.capabilities()
     tools: list[Tool] = []
+
+    def start_document(_args: Args) -> str:
+        # Handled by the assistant, which switches to dictation; this only runs if called directly.
+        return "Tell me what to write."
+
+    def revise_document(args: Args) -> str:
+        if writer is None or writer.last is None:
+            return "There's no document to change yet. Say write a document to start one."
+        document = writer.revise(str(args["instruction"]))
+        return f"Updated {document.title}, now about {document.words} words."
+
+    def open_document(_args: Args) -> str:
+        if writer is None or writer.last is None:
+            return "There's no document to open yet."
+        adapter.open_path(writer.last.path)
+        return f"Opened {writer.last.title}."
 
     def open_app(args: Args) -> str:
         spoken = str(args["app"]).strip()
@@ -172,9 +200,26 @@ def build_toolbox(  # noqa: PLR0915 (one closure per tool reads better than a cl
         adapter.lock()
         return "Screen locked."
 
-    def take_screenshot(_args: Args) -> str:
-        path = adapter.screenshot()
-        return f"Screenshot saved to {path.parent.name}/{path.name}."
+    def take_screenshot(args: Args) -> str:
+        choose = str(args.get("mode", "screen")).lower() in {"choose", "window", "area"}
+        path = adapter.screenshot(interactive=choose)
+        if path is None:
+            return "I've opened the screenshot tool. Pick what to capture."
+        return f"Screenshot saved to {path.parent.name}."
+
+    def start_recording(args: Args) -> str:
+        seconds = args.get("seconds")
+        length = _clamp_int(seconds, 1, 3600) if seconds not in (None, "", 0) else None
+        adapter.start_recording(length)
+        if length:
+            return f"Recording the screen for {_duration(length)}."
+        return "Recording the screen. Say stop recording when you're done."
+
+    def stop_recording(_args: Args) -> str:
+        path = adapter.stop_recording()
+        if path is None:
+            return "Nothing is being recorded."
+        return f"Recording saved to {path.parent.name}."
 
     def system_status(_args: Args) -> str:
         parts: list[str] = []
@@ -314,9 +359,28 @@ def build_toolbox(  # noqa: PLR0915 (one closure per tool reads better than a cl
         tools.append(
             Tool(
                 "take_screenshot",
-                "Take a screenshot of the whole screen.",
-                _schema(),
+                "Take a screenshot. mode=screen saves the whole screen; mode=choose opens the"
+                " screenshot tool so the user can pick a window or area.",
+                _schema({"mode": {"type": "string", "enum": ["screen", "choose"]}}),
                 take_screenshot,
+            )
+        )
+    if "recording" in caps:
+        tools.append(
+            Tool(
+                "start_recording",
+                "Start recording the screen to a video file. Optionally stop after a number of"
+                " seconds. Not for screenshots.",
+                _schema({"seconds": {"type": "integer", "description": "optional length"}}),
+                start_recording,
+            )
+        )
+        tools.append(
+            Tool(
+                "stop_recording",
+                "Stop the screen recording and save it.",
+                _schema(),
+                stop_recording,
             )
         )
     tools.append(
@@ -328,11 +392,45 @@ def build_toolbox(  # noqa: PLR0915 (one closure per tool reads better than a cl
         )
     )
     tools.append(Tool("current_time", "Get the current time and date.", _schema(), current_time))
+    if writer is not None:
+        tools.append(
+            Tool(
+                "start_document",
+                "Start writing a document, letter, email, essay, report or similar from the user's"
+                " dictation. Use whenever the user wants something written or drafted.",
+                _schema(
+                    {
+                        "kind": {"type": "string", "description": "e.g. letter, email, report"},
+                        "topic": {"type": "string", "description": "optional subject"},
+                    }
+                ),
+                start_document,
+            )
+        )
+        tools.append(
+            Tool(
+                "revise_document",
+                "Change the document that was just written, following the user's instruction,"
+                " e.g. make it shorter, more formal, add a section or fix the greeting.",
+                _schema({"instruction": {"type": "string"}}, ["instruction"]),
+                revise_document,
+            )
+        )
+        if "files" in caps:
+            tools.append(
+                Tool(
+                    "open_document",
+                    "Open the document that was just written.",
+                    _schema(),
+                    open_document,
+                )
+            )
     if notes_file is not None:
         tools.append(
             Tool(
                 "write_note",
-                "Save a short note or reminder for the user to read later.",
+                "Save a short note or reminder for the user to read later. Not for letters or"
+                " documents.",
                 _schema({"text": {"type": "string"}}, ["text"]),
                 write_note,
             )

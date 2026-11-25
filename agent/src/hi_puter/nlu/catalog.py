@@ -34,6 +34,10 @@ SITES = {
     "chatgpt": "chatgpt.com",
 }
 _SITE_NAMES = "|".join(sorted(SITES, key=len, reverse=True))
+_DOCUMENTS = (
+    r"(?:document|doc|letter|cover letter|email|e-mail|essay|report|article|blog post|memo"
+    r"|proposal|story|speech|summary)"
+)
 # Players named without "on": "pause spotify", "next song spotify".
 _PLAYERS = r"(?:spotify|vlc|rhythmbox|youtube music|youtube|firefox|chrome|chromium|music)"
 _DEVICE = r"(?: (?:the|my))?(?: computer| pc| laptop)?"
@@ -58,6 +62,47 @@ PATTERNS: tuple[tuple[str, str, str, Risk], ...] = (
         "open_site",
         r"^(?:open|go to) (?P<site>[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:/\S*)?)$",
         "open_site",
+        Risk.SAFE,
+    ),
+    (
+        "start_document",
+        r"^(?:(?:help me |i want to |i'?d like to |let'?s |can we |can you )?"
+        r"(?:write|draft|compose|create|start|make|prepare)(?: me)?(?: up)?"
+        r" (?:a |an |the |my |a new |new )?"
+        rf"(?P<kind>{_DOCUMENTS})"
+        r"(?: (?P<topic>(?:about|on|for|to|regarding|thanking|asking|telling) .+))?)$",
+        "start_document",
+        Risk.SAFE,
+    ),
+    (
+        "open_document",
+        rf"^(?:open|show me|show)(?: up)? (?:the |my |that )(?:{_DOCUMENTS})(?: again)?$",
+        "open_document",
+        Risk.SAFE,
+    ),
+    (
+        "stop_recording",
+        r"^(?:stop|end|finish|save)(?: the| my)?(?: screen)? (?:recording|recorder|screencast)"
+        r"(?: (?:the|my) screen)?$",
+        "stop_recording",
+        Risk.SAFE,
+    ),
+    (
+        "start_recording",
+        r"^(?:(?:start|begin)(?: a| the)?(?: screen)? (?:recording|screencast)(?: the screen)?"
+        r"|record(?: the| my)? screen|(?:open|bring up|start|launch|show)(?: the| a)?"
+        r" screen ?recorder)"
+        r"(?: for (?P<amount>\d+|a|an|one|two|three|four|five|ten|fifteen|twenty|thirty)"
+        r" (?P<unit>seconds?|minutes?))?$",
+        "start_recording",
+        Risk.SAFE,
+    ),
+    (
+        "screenshot_choose",
+        r"^(?:(?:take |grab )?(?:a )?screen ?shot (?:of )?(?:a |an |the |this |one )?"
+        r"(?:window|area|part|region|selection|section)(?: of the screen)?"
+        r"|(?:open|bring up|show)(?: the)? screen ?shot(?: tool| app| menu)?)$",
+        "screenshot_choose",
         Risk.SAFE,
     ),
     (

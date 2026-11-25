@@ -9,7 +9,7 @@ class FakeAdapter:
     def __init__(self, caps: frozenset[str] | None = None) -> None:
         self.calls: list[tuple[str, Any]] = []
         self._caps = caps or frozenset(
-            {"volume", "lock", "screenshot", "apps", "web", "power", "media"}
+            {"volume", "lock", "screenshot", "recording", "apps", "web", "power", "media", "files"}
         )
         self.running = {"firefox", "spotify"}
 
@@ -31,8 +31,22 @@ class FakeAdapter:
     def lock(self) -> None:
         self.calls.append(("lock", None))
 
-    def screenshot(self) -> Path:
-        raise NotImplementedError
+    def screenshot(self, interactive: bool = False) -> Path | None:
+        self.calls.append(("screenshot", interactive))
+        return None if interactive else Path("/home/me/Pictures/Screenshots/shot.png")
+
+    def start_recording(self, seconds: float | None) -> Path:
+        self.calls.append(("start_recording", seconds))
+        self.recording = True
+        return Path("/home/me/Videos/Screencasts/rec.webm")
+
+    def stop_recording(self) -> Path | None:
+        self.calls.append(("stop_recording", None))
+        was, self.recording = getattr(self, "recording", False), False
+        return Path("/home/me/Videos/Screencasts/rec.webm") if was else None
+
+    def open_path(self, path: Path) -> None:
+        self.calls.append(("open_path", str(path)))
 
     def open_app(self, name: str) -> None:
         self.calls.append(("open_app", name))
@@ -58,11 +72,17 @@ class ScriptedModel:
     def __init__(self, *replies: ChatReply) -> None:
         self.replies = deque(replies)
         self.requests: list[list[Message]] = []
+        self.max_tokens: list[int | None] = []
 
     def chat(
-        self, messages: list[Message], tools: list[dict[str, Any]], timeout: float | None = None
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]],
+        timeout: float | None = None,
+        max_tokens: int | None = None,
     ) -> ChatReply:
         self.requests.append([dict(message) for message in messages])
+        self.max_tokens.append(max_tokens)
         return self.replies.popleft()
 
 

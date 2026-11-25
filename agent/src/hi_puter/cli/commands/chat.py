@@ -4,6 +4,7 @@ from hi_puter.brain.assistant import is_yes
 from hi_puter.core.config import load_config
 from hi_puter.core.errors import ConfigError
 from hi_puter.core.paths import get_paths
+from hi_puter.runtime.voice_loop import split_finished
 
 
 def command(
@@ -49,9 +50,31 @@ def command(
             continue
         reply = assistant.handle(text)
         say(reply.text)
+        if reply.dictation is not None:
+            words = _read_dictation()
+            if words:
+                typer.echo("  (writing; this can take a minute)")
+            say(assistant.write_document(words, reply.dictation).text)
         if reply.pending is not None:
             try:
                 answer = input("you: ")
             except (EOFError, KeyboardInterrupt):
                 answer = "no"
             say(assistant.confirm(reply.pending, is_yes(answer)).text)
+
+
+def _read_dictation() -> str:
+    """Typed stand-in for dictation: lines until 'done' or an empty line."""
+    typer.echo("  (type or paste it; finish with a line saying 'done' or an empty line)")
+    lines: list[str] = []
+    while True:
+        try:
+            line = input("  ... ")
+        except (EOFError, KeyboardInterrupt):
+            break
+        finished, kept = split_finished(line) if line.strip() else (True, "")
+        if kept:
+            lines.append(kept)
+        if finished:
+            break
+    return " ".join(lines)

@@ -12,12 +12,15 @@
 """
 
 import logging
+import re
 from collections.abc import Callable
 from threading import Event
+from time import monotonic
 
 from hi_puter.audio.listener import UtteranceSource
 from hi_puter.brain.assistant import Assistant, Reply, is_yes
 from hi_puter.core.config import VoiceConfig
+from hi_puter.nlu.normalize import normalize
 from hi_puter.speech.stt import Transcriber
 from hi_puter.speech.tts import Synthesizer
 from hi_puter.speech.wake import match_wake
@@ -26,6 +29,27 @@ log = logging.getLogger("hi_puter")
 
 # 2.5 s of 16 kHz 16-bit mono: long enough for "Hey <two-word name>" plus a pause.
 WAKE_WINDOW_BYTES = int(2.5 * 16_000 * 2)
+
+
+# Said on their own, these end a dictation.
+FINISHED_ALONE = frozenset(
+    {"done", "i'm done", "im done", "i am done", "that's it", "thats it", "that's all",
+     "thats all", "finished", "i'm finished", "the end", "end", "end dictation", "stop"}
+)  # fmt: skip
+# Said at the end of a longer utterance, these also end it ("...and that's all").
+FINISHED_TAIL = re.compile(
+    r"[\s,.;:!-]*\b(?:i'?m done|i am done|that'?s all|end of (?:the )?dictation|end dictation)"
+    r"[\s.!]*$",
+    re.IGNORECASE,
+)
+
+
+def split_finished(heard: str) -> tuple[bool, str]:
+    """(whether the user finished dictating, the words to keep)."""
+    if normalize(heard) in FINISHED_ALONE:
+        return True, ""
+    kept, count = FINISHED_TAIL.subn("", heard)
+    return (True, kept.strip()) if count else (False, heard.strip())
 
 
 class VoiceLoop:
@@ -42,6 +66,8 @@ class VoiceLoop:
         stop: Event,
         chime: Callable[[], None] | None = None,
         log_transcripts: bool = False,
+        dictation_pause_seconds: float = 10.0,
+        dictation_max_seconds: float = 600.0,
     ) -> None:
         self.source = source
         self.stt = stt
@@ -53,6 +79,8 @@ class VoiceLoop:
         self.stop = stop
         self.chime = chime
         self.log_transcripts = log_transcripts
+        self.dictation_pause_seconds = dictation_pause_seconds
+        self.dictation_max_seconds = dictation_max_seconds
 
     def run(self) -> None:
         log.info("Listening for %r", self.wake_name)
@@ -108,12 +136,39 @@ class VoiceLoop:
             self._say(self.voice.working_phrase)
         reply = self.assistant.handle(request)
         self._say(reply.text)
+        if reply.dictation is not None:
+            words = self._dictate()
+            if words:
+                self._say(
+                    f"Got it. Writing your {reply.dictation.kind} now; this can take a minute."
+                )
+            result = self.assistant.write_document(words, reply.dictation)
+            self._say(result.text)
+            return result
         if reply.pending is None:
             return reply
         answer = self._hear(self.voice.prompt_timeout_seconds)
         result = self.assistant.confirm(reply.pending, is_yes(answer))
         self._say(result.text)
         return result
+
+    def _dictate(self) -> str:
+        """Collect what the user says, across pauses, until they say "done" or go quiet."""
+        parts: list[str] = []
+        started = monotonic()
+        while not self.stop.is_set() and monotonic() - started < self.dictation_max_seconds:
+            # Allow a moment to start; after that, a long pause means they've finished.
+            wait = self.dictation_pause_seconds if parts else 2 * self.voice.prompt_timeout_seconds
+            heard = self._hear(wait)
+            if heard is None:
+                break
+            finished, kept = split_finished(heard)
+            if kept:
+                parts.append(kept)
+            if finished:
+                break
+        log.info("Dictation: %d words", sum(len(part.split()) for part in parts))
+        return " ".join(parts)
 
     def _acknowledge(self) -> None:
         if self.voice.chime and self.chime is not None:

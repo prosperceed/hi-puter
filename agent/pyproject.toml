@@ -7,7 +7,7 @@ name = "hi-puter"
 version = "0.1.0"
 description = "Offline-first local voice assistant for Windows and Linux"
 requires-python = ">=3.10"
-dependencies = ["typer>=0.12,<1", "platformdirs>=4,<5", "psutil>=5.9,<8", "tomli>=2,<3; python_version < '3.11'", "tomli-w>=1,<3"]
+dependencies = ["typer>=0.12,<1", "platformdirs>=4,<5", "psutil>=5.9,<8", "tomli>=2,<3; python_version < '3.11'", "tomli-w>=1,<3", "jeepney>=0.8,<1; sys_platform == 'linux'"]
 
 [project.optional-dependencies]
 audio = ["sounddevice>=0.4,<1", "numpy>=1.24"]
@@ -43,5 +43,5 @@ files = ["src"]
 
 [[tool.mypy.overrides]]
 # Optional runtime dependencies without type information.
-module = ["faster_whisper", "numpy", "pyttsx3", "sounddevice", "webrtcvad", "psutil", "vosk"]
+module = ["faster_whisper", "numpy", "pyttsx3", "sounddevice", "webrtcvad", "psutil", "vosk", "jeepney", "jeepney.*"]
 ignore_missing_imports = true

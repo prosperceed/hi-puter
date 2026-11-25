@@ -35,10 +35,35 @@ def intent_call(intent: Intent, text: str = "") -> tuple[str, dict[str, Any]] | 
         "time": ("current_time", {}),
         "power": ("power", {"action": intent.id}),
     }
+    if intent.action == "start_document":
+        return (
+            "start_document",
+            {"kind": slots.get("kind", "document"), "topic": slots.get("topic", "")},
+        )
+    if intent.action == "start_recording":
+        return ("start_recording", {"seconds": _seconds(slots.get("amount"), slots.get("unit"))})
+    if intent.action in {"open_document", "stop_recording"}:
+        return (intent.action, {})
+    if intent.action == "screenshot_choose":
+        return ("take_screenshot", {"mode": "choose"})
     if intent.action == "media":
         player = (slots.get("app") or slots.get("player") or "").strip() or None
         return ("media_control", {"action": intent.id.removeprefix("media_"), "app": player})
     return calls.get(intent.action)
+
+
+NUMBER_WORDS = {
+    "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30,
+}  # fmt: skip
+
+
+def _seconds(amount: str | None, unit: str | None) -> int | None:
+    """("30", "seconds") -> 30, ("two", "minutes") -> 120, (None, None) -> None."""
+    if not amount:
+        return None
+    number = int(amount) if amount.isdigit() else NUMBER_WORDS.get(amount, 0)
+    return number * 60 if (unit or "").startswith("minute") else number or None
 
 
 def execute(

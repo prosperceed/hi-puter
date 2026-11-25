@@ -59,6 +59,22 @@ class VoiceConfig:
 
 
 @dataclass(frozen=True)
+class DocumentsConfig:
+    folder: str = "~/Documents/Hi-Puter"
+    open_after_writing: bool = True
+    # Dictation ends after this much silence, or when the user says "done".
+    pause_seconds: float = 10.0
+    max_minutes: float = 10.0
+    # Optional bigger model just for writing, e.g. "qwen3.5:4b" once there is RAM for it.
+    # Empty uses the voice model. Switching models costs a reload each way.
+    model: str = ""
+
+    @property
+    def path(self) -> Path:
+        return Path(self.folder).expanduser()
+
+
+@dataclass(frozen=True)
 class LlmConfig:
     enabled: bool = True
     host: str = "http://127.0.0.1:11434"
@@ -92,6 +108,7 @@ class Config:
     tts: TtsConfig = field(default_factory=TtsConfig)
     voice: VoiceConfig = field(default_factory=VoiceConfig)
     llm: LlmConfig = field(default_factory=LlmConfig)
+    documents: DocumentsConfig = field(default_factory=DocumentsConfig)
     apps_aliases: dict[str, str] = field(default_factory=dict)
     search_url_template: str = "https://www.google.com/search?q={query}"
     lifecycle: LifecycleConfig = field(default_factory=LifecycleConfig)
@@ -122,6 +139,8 @@ class Config:
             raise ConfigError("Voice timeouts must be positive.")
         if not 200 <= self.voice.end_silence_ms <= 3000:
             raise ConfigError("End-of-speech silence must be 200 to 3000 ms.")
+        if not 2 <= self.documents.pause_seconds <= 60 or self.documents.max_minutes <= 0:
+            raise ConfigError("Dictation pause must be 2 to 60 seconds and max_minutes positive.")
         if "{query}" not in self.search_url_template:
             raise ConfigError("Search URL template must contain {query}.")
         self._validate_llm()
@@ -177,6 +196,7 @@ def load_config(path: Path) -> Config:
         tts=_build(TtsConfig, _section(raw, "tts")),
         voice=_build(VoiceConfig, _section(raw, "voice")),
         llm=_build(LlmConfig, _section(raw, "llm")),
+        documents=_build(DocumentsConfig, _section(raw, "documents")),
         apps_aliases={
             str(k).lower(): str(v) for k, v in _section(raw, "apps").get("aliases", {}).items()
         },

@@ -1,3 +1,4 @@
+import logging
 import re
 import shutil
 import subprocess
@@ -7,16 +8,22 @@ from datetime import datetime
 from pathlib import Path
 
 from hi_puter.adapters import processes
-from hi_puter.adapters.linux import mpris
+from hi_puter.adapters.linux import mpris, screen
 from hi_puter.adapters.runner import run
 from hi_puter.core.errors import ActionError
 
 SINK = "@DEFAULT_AUDIO_SINK@"
+log = logging.getLogger("hi_puter")
 
 
 class LinuxAdapter:
+    def __init__(self) -> None:
+        self._recorder = screen.ScreenRecorder()
+
     def capabilities(self) -> frozenset[str]:
-        return frozenset({"volume", "lock", "screenshot", "apps", "web", "power", "media"})
+        return frozenset(
+            {"volume", "lock", "screenshot", "recording", "apps", "web", "power", "media", "files"}
+        )
 
     def volume_get(self) -> int:
         output = run(["wpctl", "get-volume", SINK]).stdout  # "Volume: 0.40"
@@ -36,23 +43,37 @@ class LinuxAdapter:
     def lock(self) -> None:
         run(["loginctl", "lock-session"])
 
-    def screenshot(self) -> Path:
-        folder = Path.home() / "Pictures" / "Screenshots"
-        folder.mkdir(parents=True, exist_ok=True)
-        target = folder / f"Screenshot {datetime.now():%Y-%m-%d %H-%M-%S}.png"
-        commands = (
-            ["gnome-screenshot", "-f", str(target)],
-            ["spectacle", "-b", "-n", "-f", "-o", str(target)],
-            ["grim", str(target)],
-            ["scrot", str(target)],
-            ["import", "-window", "root", str(target)],
+    def screenshot(self, interactive: bool = False) -> Path | None:
+        """Save a full-screen capture, or open the screenshot tool (returns None)."""
+        if not interactive:
+            try:
+                path = screen.portal_screenshot(interactive=False, timeout=15)
+            except ActionError as exc:
+                log.info("Portal screenshot unavailable: %s", exc)
+                path = None
+            if path is not None:
+                return path
+            path = _screenshot_with_cli()
+            if path is not None:
+                return path
+        # Silent capture refused or unavailable: let the user pick what to capture.
+        screen.open_screenshot_tool()
+        return None
+
+    def start_recording(self, seconds: float | None) -> Path:
+        return self._recorder.start(seconds)
+
+    def stop_recording(self) -> Path | None:
+        return self._recorder.stop()
+
+    def open_path(self, path: Path) -> None:
+        opener = shutil.which("gio") or shutil.which("xdg-open")
+        if opener is None:
+            raise ActionError("No program to open files with (install xdg-utils).")
+        argv = [opener, "open", str(path)] if opener.endswith("gio") else [opener, str(path)]
+        subprocess.Popen(
+            argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True
         )
-        for argv in commands:
-            if shutil.which(argv[0]):
-                run(argv, timeout=15)
-                if target.exists():
-                    return target
-        raise ActionError("No screenshot tool found (install gnome-screenshot, grim or scrot).")
 
     def open_app(self, name: str) -> None:
         for desktop_id in _desktop_ids(name):
@@ -114,6 +135,29 @@ def _desktop_entries(folders: tuple[Path, ...] = APP_FOLDERS) -> list[tuple[str,
                 )
             )
     return entries
+
+
+def _screenshot_with_cli() -> Path | None:
+    """Screenshot tools for X11 and non-GNOME desktops."""
+    folder = screen.screenshots_folder()
+    folder.mkdir(parents=True, exist_ok=True)
+    target = folder / f"Screenshot {datetime.now():%Y-%m-%d %H-%M-%S}.png"
+    commands = (
+        ["gnome-screenshot", "-f", str(target)],
+        ["spectacle", "-b", "-n", "-f", "-o", str(target)],
+        ["grim", str(target)],
+        ["scrot", str(target)],
+        ["import", "-window", "root", str(target)],
+    )
+    for argv in commands:
+        if shutil.which(argv[0]):
+            try:
+                run(argv, timeout=15)
+            except ActionError:
+                continue
+            if target.exists():
+                return target
+    return None
 
 
 def _program(exec_line: str) -> str:

@@ -9,7 +9,7 @@ class WindowsAdapter:
     """Windows implementation boundary. Real Windows verification is pending."""
 
     def capabilities(self) -> frozenset[str]:
-        return frozenset({"volume", "lock", "screenshot", "apps", "web", "power"})
+        return frozenset({"volume", "lock", "screenshot", "apps", "web", "power", "files"})
 
     def volume_get(self) -> int:
         raise NotImplementedError

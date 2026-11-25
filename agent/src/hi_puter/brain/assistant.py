@@ -11,12 +11,14 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from pathlib import Path
 from threading import Lock
 from typing import Any
 
 from hi_puter.actions.registry import HELP, intent_call
 from hi_puter.brain.llm import ChatModel, ChatReply, Message, ToolCall
 from hi_puter.brain.tools import ToolBox
+from hi_puter.brain.writer import DocumentRequest, Writer, document_kind, topic_phrase
 from hi_puter.core.errors import ModelError
 from hi_puter.nlu.catalog import Intent, Risk
 from hi_puter.nlu.matcher import match
@@ -57,6 +59,8 @@ class Reply:
     pending: Pending | None = None
     end_session: bool = False
     actions: list[str] = field(default_factory=list)
+    # Set when the user asked to write something: the caller collects their dictation next.
+    dictation: DocumentRequest | None = None
 
 
 class Assistant:
@@ -79,9 +83,13 @@ class Assistant:
         memory_chars: int = MEMORY_CHARS,
         idle_forget: timedelta = IDLE_FORGET,
         clock: Callable[[], datetime] = datetime.now,
+        writer: Writer | None = None,
+        open_documents: bool = True,
     ) -> None:
         self.toolbox = toolbox
         self.model = model
+        self.writer = writer
+        self.open_documents = open_documents
         self.name = name.title()
         self.max_steps = max_steps
         self.memory_chars = memory_chars
@@ -166,6 +174,55 @@ class Assistant:
             self._trim()
             return reply
 
+    # -- documents ---------------------------------------------------------------------------
+
+    def _dictation_reply(self, args: dict[str, Any]) -> Reply:
+        if self.writer is None:
+            return Reply("I can't write documents without the language model.")
+        request = DocumentRequest(
+            document_kind(str(args.get("kind") or "document")), str(args.get("topic") or "").strip()
+        )
+        return Reply(
+            f"Okay. Tell me what the {request.kind}{topic_phrase(request.topic)} should say. "
+            "Take your time, and say done when you're finished.",
+            dictation=request,
+        )
+
+    def write_document(self, dictation: str, request: DocumentRequest) -> Reply:
+        """Write up what the user dictated, save it and (by default) open it."""
+        if self.writer is None:
+            return Reply("I can't write documents without the language model.")
+        if not dictation.strip():
+            return Reply(f"I didn't hear anything, so I haven't written the {request.kind}.")
+        with self._lock:
+            try:
+                document = self.writer.write(dictation, request)
+            except (ModelError, ValueError) as exc:
+                log.warning("Writing failed: %s", exc)
+                saved = self._save_dictation(dictation)
+                return Reply(
+                    f"I couldn't write it up just now, but I saved what you said to {saved}."
+                )
+            opened = ""
+            can_open = self.open_documents and "open_document" in self.toolbox
+            if can_open and self.toolbox.call("open_document", {}).ok:
+                opened = " and opened it"
+            text = (
+                f"I wrote your {document.kind}, {document.title}, about {document.words} "
+                f"words, saved it in {document.path.parent.name}{opened}. You can ask me to "
+                "change it, like make it shorter or more formal."
+            )
+            # Let the model know a document exists, so "make it shorter" makes sense later.
+            self._note(f"(I dictated a {document.kind}: {document.title})", text)
+            return Reply(text, actions=["write_document"])
+
+    def _save_dictation(self, dictation: str) -> str:
+        folder = self.writer.folder if self.writer is not None else Path.home() / "Documents"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{self.clock():%Y-%m-%d %H-%M} Dictation.md"
+        path.write_text(f"# Dictation\n\n{dictation.strip()}\n", encoding="utf-8")
+        return folder.name
+
     # -- fast path ---------------------------------------------------------------------------
 
     def _run_intent(self, action: str, call: tuple[str, dict[str, Any]] | None) -> Reply:
@@ -176,6 +233,8 @@ class Assistant:
         return self._invoke(*call)
 
     def _invoke(self, name: str, args: dict[str, Any]) -> Reply:
+        if name == "start_document":
+            return self._dictation_reply(args)
         tool = self.toolbox.get(name)
         if tool is None:
             return Reply("That isn't supported on this computer.")
@@ -187,7 +246,7 @@ class Assistant:
 
     # -- language model ----------------------------------------------------------------------
 
-    def _think(self, text: str, timeout: float | None = None) -> Reply:  # noqa: PLR0911, PLR0915
+    def _think(self, text: str, timeout: float | None = None) -> Reply:  # noqa: PLR0911, PLR0912, PLR0915
         if self.model is None:
             return Reply(NO_MODEL)
         messages: list[Message] = [{"role": "system", "content": self._system_prompt()}]
@@ -253,6 +312,12 @@ class Assistant:
                                 actions=done,
                             )
                         )
+                    if call.name == "start_document":
+                        messages.append(_tool_result(call, "Listening to the user's dictation."))
+                        messages += [
+                            _tool_result(other, NOT_RUN) for other in reply.tool_calls[index + 1 :]
+                        ]
+                        return finish(self._dictation_reply(call.arguments))
                     if call.name == "close_app" and not _named(call.arguments, text, prior):
                         # Small models "close all apps" by listing every app they have heard of.
                         log.info("refused close_app %s: not named by the user", call.arguments)

@@ -1,9 +1,11 @@
+import dataclasses
 from pathlib import Path
 
 from hi_puter.adapters.base import SystemAdapter
 from hi_puter.brain.assistant import Assistant
 from hi_puter.brain.llm import OllamaClient
 from hi_puter.brain.tools import build_toolbox
+from hi_puter.brain.writer import Writer
 from hi_puter.core.config import Config
 from hi_puter.core.paths import AppPaths
 
@@ -12,7 +14,9 @@ class DryRunAdapter:
     """Prints what would happen instead of touching the system."""
 
     def capabilities(self) -> frozenset[str]:
-        return frozenset({"volume", "lock", "screenshot", "apps", "web", "power", "media"})
+        return frozenset(
+            {"volume", "lock", "screenshot", "recording", "apps", "web", "power", "media", "files"}
+        )
 
     def _show(self, action: str) -> None:
         print(f"  [dry run] {action}", flush=True)
@@ -32,9 +36,23 @@ class DryRunAdapter:
     def lock(self) -> None:
         self._show("lock the screen")
 
-    def screenshot(self) -> Path:
+    def screenshot(self, interactive: bool = False) -> Path | None:
+        if interactive:
+            self._show("open the screenshot tool")
+            return None
         self._show("take a screenshot")
         return Path.home() / "Pictures" / "Screenshots" / "dry-run.png"
+
+    def start_recording(self, seconds: float | None) -> Path:
+        self._show("start screen recording" + (f" for {seconds:g}s" if seconds else ""))
+        return Path.home() / "Videos" / "Screencasts" / "dry-run.webm"
+
+    def stop_recording(self) -> Path | None:
+        self._show("stop screen recording")
+        return Path.home() / "Videos" / "Screencasts" / "dry-run.webm"
+
+    def open_path(self, path: Path) -> None:
+        self._show(f"open file {path}")
 
     def open_app(self, name: str) -> None:
         self._show(f"open app {name!r}")
@@ -69,7 +87,18 @@ def make_model(config: Config) -> OllamaClient | None:
 
 
 def build_assistant(config: Config, paths: AppPaths, adapter: SystemAdapter) -> Assistant:
-    toolbox = build_toolbox(adapter, config, notes_file=paths.data_dir / "notes.md")
+    model = make_model(config)
+    writing_model = model
+    if model is not None and config.documents.model.strip():
+        llm = dataclasses.replace(config.llm, model=config.documents.model.strip())
+        writing_model = make_model(dataclasses.replace(config, llm=llm))
+    writer = Writer(writing_model, config.documents.path) if writing_model is not None else None
+    toolbox = build_toolbox(adapter, config, notes_file=paths.data_dir / "notes.md", writer=writer)
     return Assistant(
-        toolbox, make_model(config), name=config.wake.name, max_steps=config.llm.max_steps
+        toolbox,
+        model,
+        name=config.wake.name,
+        max_steps=config.llm.max_steps,
+        writer=writer,
+        open_documents=config.documents.open_after_writing,
     )

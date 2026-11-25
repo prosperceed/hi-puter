@@ -105,8 +105,12 @@ def test_compound_requests_go_to_the_model_even_if_the_regex_matches() -> None:
 
 
 def test_tool_failures_are_spoken_not_raised() -> None:
+    class NoScreenshots(FakeAdapter):
+        def screenshot(self, interactive: bool = False) -> Path | None:
+            raise NotImplementedError
+
     model = ScriptedModel(call("take_screenshot"))
-    assistant, _ = make(model)
+    assistant = Assistant(build_toolbox(NoScreenshots(), Config()), model, name="nova")  # type: ignore[arg-type]
     reply = assistant.handle("grab my screen please")
     assert reply.text == "That isn't supported on this computer yet."
     assert reply.actions == []

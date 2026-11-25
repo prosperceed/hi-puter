@@ -44,7 +44,11 @@ class ChatReply:
 
 class ChatModel(Protocol):
     def chat(
-        self, messages: list[Message], tools: list[dict[str, Any]], timeout: float | None = None
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]],
+        timeout: float | None = None,
+        max_tokens: int | None = None,
     ) -> ChatReply: ...
 
 
@@ -72,16 +76,23 @@ class OllamaClient:
         self._send_think = True
 
     def chat(
-        self, messages: list[Message], tools: list[dict[str, Any]], timeout: float | None = None
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]],
+        timeout: float | None = None,
+        max_tokens: int | None = None,
     ) -> ChatReply:
         body = self._chat_body(messages, tools)
+        if max_tokens is not None:
+            # Only the reply length changes, which does not make Ollama reload the model.
+            body["options"]["num_predict"] = max_tokens
         try:
             data = self._post("/api/chat", body, timeout=timeout)
         except ModelError as exc:
             # Older servers and non-thinking models reject the "think" field: retry without it.
             if self._send_think and "think" in str(exc).lower():
                 self._send_think = False
-                return self.chat(messages, tools, timeout)
+                return self.chat(messages, tools, timeout, max_tokens)
             raise
         return parse_reply(data)
 

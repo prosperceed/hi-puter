@@ -97,6 +97,8 @@ def main() -> None:
             stop=stop,
             chime=play_listening_cue,
             log_transcripts=config.logging.log_transcripts,
+            dictation_pause_seconds=config.documents.pause_seconds,
+            dictation_max_seconds=config.documents.max_minutes * 60,
         )
         with listener:
             loop.run()
