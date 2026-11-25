@@ -50,3 +50,15 @@ agent/.pytest_cache/
 agent/.ruff_cache/
 agent/.mypy_cache/
 .venv
+
+# Agents
+/.agents
+/.aws
+/.codex
+
+.agents
+.aws
+.codex
+.AGENTS.md
+# local editor tooling
+/.claude/
