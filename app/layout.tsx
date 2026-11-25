@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 
-const sans = Geist({ variable: "--font-sans", subsets: ["latin"], display: "swap" });
+const sans = Instrument_Sans({ variable: "--font-sans", subsets: ["latin"], display: "swap" });
 const mono = Geist_Mono({ variable: "--font-mono", subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
@@ -13,7 +13,6 @@ export const metadata: Metadata = {
   keywords: ["voice assistant", "Windows", "Linux", "local AI", "terminal"],
   openGraph: { title: "Hi-Puter | Your computer, at your command", description: "A local voice assistant for Windows and Linux.", type: "website", images: ["/opengraph-image"] },
   twitter: { card: "summary_large_image", title: "Hi-Puter", description: "Your computer, at your command." },
-  icons: { icon: "/favicon-placeholder.svg" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
