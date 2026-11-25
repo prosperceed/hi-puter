@@ -10,10 +10,11 @@ export function Footer() {
           <p className="footer-copy">Voice control for the computer you already use.</p>
         </div>
         <nav className="footer-links" aria-label="Footer">
-          <Link href="#how-it-works">How it works</Link>
-          <Link href="#commands">Commands</Link>
-          <Link href="#privacy">Privacy</Link>
-          <Link href="#install">Install</Link>
+          <Link href="/#how-it-works">How it works</Link>
+          <Link href="/#commands">Commands</Link>
+          <Link href="/#privacy">Privacy</Link>
+          <Link href="/#install">Install</Link>
+          <Link href="/docs">Setup guide</Link>
         </nav>
         <p className="footer-meta">
           Windows + Linux · Built local-first

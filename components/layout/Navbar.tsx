@@ -21,14 +21,14 @@ export function Navbar() {
               {link.label}
             </Link>
           ))}
-          <Link className="button button-primary nav-mobile-cta" href="#install" onClick={close}>
+          <Link className="button button-primary nav-mobile-cta" href="/#install" onClick={close}>
             Install Hi-Puter
             <ArrowRight className="icon-trail" size={16} aria-hidden="true" />
           </Link>
         </nav>
         <div className="nav-actions">
           <ThemeToggle />
-          <Link className="button button-small button-secondary nav-cta" href="#install">
+          <Link className="button button-small button-secondary nav-cta" href="/#install">
             Install
           </Link>
           <button

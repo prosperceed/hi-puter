@@ -5,8 +5,16 @@ import { useState } from "react";
 
 type AccordionItem = { question: string; answer: string };
 
-export function Accordion({ items }: { items: readonly AccordionItem[] }) {
-  const [active, setActive] = useState<number | null>(0);
+export function Accordion({
+  items,
+  idPrefix = "faq",
+  openFirst = true,
+}: {
+  items: readonly AccordionItem[];
+  idPrefix?: string;
+  openFirst?: boolean;
+}) {
+  const [active, setActive] = useState<number | null>(openFirst ? 0 : null);
 
   return (
     <div className="accordion">
@@ -15,11 +23,11 @@ export function Accordion({ items }: { items: readonly AccordionItem[] }) {
         return (
           <div className="accordion-item" key={item.question}>
             <button
-              id={`faq-trigger-${index}`}
+              id={`${idPrefix}-trigger-${index}`}
               className="accordion-trigger"
               type="button"
               aria-expanded={isOpen}
-              aria-controls={`faq-answer-${index}`}
+              aria-controls={`${idPrefix}-answer-${index}`}
               onClick={() => setActive(isOpen ? null : index)}
             >
               <span>{item.question}</span>
@@ -28,10 +36,10 @@ export function Accordion({ items }: { items: readonly AccordionItem[] }) {
               </span>
             </button>
             <div
-              id={`faq-answer-${index}`}
+              id={`${idPrefix}-answer-${index}`}
               className={isOpen ? "accordion-answer is-open" : "accordion-answer"}
               role="region"
-              aria-labelledby={`faq-trigger-${index}`}
+              aria-labelledby={`${idPrefix}-trigger-${index}`}
             >
               <div>
                 <p>{item.answer}</p>
